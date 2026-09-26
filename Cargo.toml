@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1"
 axum = "0.8"
 axum-extra = { version = "0.12", features = ["cookie-private"] }
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 cookie = "0.18"
