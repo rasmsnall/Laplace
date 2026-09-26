@@ -1,0 +1,108 @@
+# demo flows; every flow has an id, how often it should happen (every) and slack (grace)
+
+# who looks after flows; each owner's alerts go to their own webhook and addresses,
+# or ALERT_WEBHOOK and ALERT_EMAIL if unset
+[owners.data-team]
+webhook_env = "DATA_TEAM_WEBHOOK"
+
+[owners.integrations]
+webhook_env = "INTEGRATIONS_WEBHOOK"
+email = ["integrations@example.com"]
+
+# the partner patches its sftp server on sunday nights; broken flows there do not alert then
+[maintenance.partner-patching]
+cron = "0 2 * * 0"
+lasts = "2h"
+flows = ["partner-*"]
+
+[[flow]]
+id = "nightly-reconcile"
+owner = "data-team"
+kind = "heartbeat"          # task scheduler job, reports through scripts/heartbeat.ps1
+source = "task scheduler, app01"
+every = "24h"
+grace = "1h"
+max_runtime = "30m"
+
+[[flow]]
+id = "partner-statements"
+sla = 0.995
+owner = "integrations"
+kind = "sftp"               # partner uploads to an sftp server, ours or theirs
+host = "sftp"
+user = "partner"
+password_env = "SFTP_PARTNER_PASSWORD"
+dir = "/upload"
+pattern = "*.xml"
+cron = "0 7 * * 1-5"         # due by 07:00
+calendar = ["se"]            # on swedish business days only
+grace = "30m"
+pickup = "1h"
+poll = "1m"
+
+[[flow]]
+id = "erp-dump-gcs"
+sla = 0.99
+owner = "data-team"
+kind = "storage"            # in production: gs://partner-bucket/dumps/
+url = "/landing/gcs"
+pattern = "*.sql.gz"
+every = "24h"
+grace = "2h"
+poll = "1m"
+
+[[flow]]
+id = "erp-dump-adls"
+owner = "data-team"
+kind = "storage"            # in production: abfss://landing@account.dfs.core.windows.net/pg/
+after = ["erp-dump-gcs"]    # the copy can only happen once the dump has arrived
+url = "/landing/adls"
+pattern = "*.sql.gz"
+every = "24h"
+grace = "3h"
+poll = "1m"
+
+[[flow]]
+id = "erp-pgdelta-load"
+sla = 0.99
+owner = "data-team"
+kind = "heartbeat"          # the databricks notebook running pgdelta reports its own runs
+source = "databricks, pgdelta"
+after = ["erp-dump-adls"]
+cron = "0 3 * * *"           # the load runs at 03:00 every night
+grace = "4h"
+
+# [[flow]]
+# id = "erp-pgdelta-job"
+# kind = "databricks"
+# job_id = 123456
+# every = "24h"
+# grace = "4h"
+
+[[flow]]
+id = "erp-api"
+sla = 0.999
+owner = "integrations"
+kind = "http"               # an api we call
+url = "https://example.com"
+every = "1m"
+grace = "2m"
+max_latency = "2s"
+
+[[flow]]
+id = "supplier-portal"
+sla = 0.999
+owner = "integrations"
+kind = "inbound"            # an api partners call; the gateway posts to /calls/supplier-portal
+every = "1h"
+grace = "30m"
+max_error_rate = 0.05
+
+[[flow]]
+id = "history-export"
+kind = "delta"              # in production: abfss://raw@account.dfs.core.windows.net/pg/ for pgdelta's tables
+owner = "data-team"
+url = "/delta"              # laplace's own history export, three delta tables
+every = "15m"
+grace = "10m"
+poll = "1m"

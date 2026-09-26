@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "laplace.name" . }}
+  labels:
+    {{- include "laplace.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "laplace.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    # probes and metrics; the ingress only routes to `http`
+    - name: ops
+      port: 9090
+      targetPort: ops

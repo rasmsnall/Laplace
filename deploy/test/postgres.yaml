@@ -1,0 +1,76 @@
+# a throwaway postgres for testing the chart in a local cluster. production uses a managed
+# postgres. two roles, as SECURITY.md asks: the owner migrates, the app only reads and writes.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-init
+stringData:
+  POSTGRES_PASSWORD: test-only-superuser
+  roles.sql: |
+    create role laplace_owner login password 'test-only-owner';
+    create role laplace_app login password 'test-only-app';
+    create database laplace owner laplace_owner;
+    \connect laplace
+    alter schema public owner to laplace_owner;
+    grant usage on schema public to laplace_app;
+    -- tables the migrations create later are readable and writable by the app, nothing more
+    alter default privileges for role laplace_owner in schema public
+      grant select, insert, update, delete on tables to laplace_app;
+    alter default privileges for role laplace_owner in schema public
+      grant usage, select on sequences to laplace_app;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-init, key: POSTGRES_PASSWORD } }
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres"] }
+            periodSeconds: 2
+          volumeMounts:
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init
+          secret:
+            secretName: postgres-init
+            items: [{ key: roles.sql, path: roles.sql }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector: { app: postgres }
+  ports:
+    - port: 5432
+---
+# what the chart expects: one secret for the app, one for the migration job
+apiVersion: v1
+kind: Secret
+metadata:
+  name: laplace
+stringData:
+  DATABASE_URL: postgres://laplace_app:test-only-app@postgres/laplace
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: laplace-migrations
+stringData:
+  DATABASE_URL: postgres://laplace_owner:test-only-owner@postgres/laplace

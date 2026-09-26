@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "laplace.name" . }}
+  labels:
+    {{- include "laplace.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "laplace.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "laplace.selector" . | nindent 8 }}
+      # no checksum of flows.toml here: laplace rereads the mounted file when the configmap
+      # changes, and keeps the running version if the new one does not parse
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "laplace.podSecurity" . | nindent 8 }}
+      # time to finish requests and write buffered call counts after sigterm
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "laplace.selector" . | nindent 14 }}
+      containers:
+        - name: laplace
+          image: {{ include "laplace.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8090
+            - name: ops
+              containerPort: 9090
+          env:
+            # the migration job changes the schema; the app only reads and writes
+            - name: RUN_MIGRATIONS
+              value: "false"
+            - name: LAPLACE_CONFIG
+              value: /etc/laplace/flows.toml
+            {{- if .Values.publicUrl }}
+            - name: LAPLACE_PUBLIC_URL
+              value: {{ .Values.publicUrl | quote }}
+            {{- end }}
+            {{- if .Values.ingress.enabled }}
+            - name: LAPLACE_TRUST_PROXY
+              value: "true"
+            {{- end }}
+            {{- range $name, $value := .Values.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.app }}
+          startupProbe:
+            httpGet: { path: /readyz, port: ops }
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /readyz, port: ops }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: ops }
+            periodSeconds: 10
+            failureThreshold: 6
+          lifecycle:
+            # lets the service stop sending traffic before laplace starts shutting down
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "laplace.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - name: flows
+              mountPath: /etc/laplace
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: flows
+          configMap:
+            name: {{ include "laplace.name" . }}-flows
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

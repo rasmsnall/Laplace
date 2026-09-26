@@ -1,0 +1,67 @@
+services:
+  watch:
+    build: .
+    ports:
+      - "8090:8090"
+      - "9090:9090"
+    environment:
+      DATABASE_URL: postgres://watch:watch@postgres/watch
+      DELTA_URI: /delta
+      SFTP_PARTNER_PASSWORD: partner
+      LAPLACE_TOKEN: ${LAPLACE_TOKEN:-}
+      LAPLACE_PUBLIC_URL: ${LAPLACE_PUBLIC_URL:-http://localhost:8090}
+      LAPLACE_SESSION_KEY: ${LAPLACE_SESSION_KEY:-}
+      LAPLACE_ADMINS: ${LAPLACE_ADMINS:-}
+      LAPLACE_OIDC_ISSUER: ${LAPLACE_OIDC_ISSUER:-}
+      LAPLACE_OIDC_CLIENT_ID: ${LAPLACE_OIDC_CLIENT_ID:-}
+      LAPLACE_OIDC_CLIENT_SECRET: ${LAPLACE_OIDC_CLIENT_SECRET:-}
+      LAPLACE_OIDC_ALLOWED_DOMAINS: ${LAPLACE_OIDC_ALLOWED_DOMAINS:-}
+      ALERT_WEBHOOK: ${ALERT_WEBHOOK:-}
+      ALERT_EMAIL: ${ALERT_EMAIL:-}
+      LAPLACE_SMTP_URL: ${LAPLACE_SMTP_URL:-smtp://mail:1025}
+      LAPLACE_MAIL_FROM: ${LAPLACE_MAIL_FROM:-laplace@example.com}
+      LAPLACE_GRAPH_TENANT_ID: ${LAPLACE_GRAPH_TENANT_ID:-}
+      LAPLACE_GRAPH_CLIENT_ID: ${LAPLACE_GRAPH_CLIENT_ID:-}
+      LAPLACE_GRAPH_CLIENT_SECRET: ${LAPLACE_GRAPH_CLIENT_SECRET:-}
+      LAPLACE_HEARTBEAT_URL: ${LAPLACE_HEARTBEAT_URL:-}
+      DATA_TEAM_WEBHOOK: ${DATA_TEAM_WEBHOOK:-}
+      INTEGRATIONS_WEBHOOK: ${INTEGRATIONS_WEBHOOK:-}
+      DATABRICKS_HOST: ${DATABRICKS_HOST:-}
+      DATABRICKS_TOKEN: ${DATABRICKS_TOKEN:-}
+    volumes:
+      - ./flows.toml:/etc/laplace/flows.toml:ro
+      - ./demo/landing:/landing:ro
+      - delta:/delta
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: watch
+      POSTGRES_PASSWORD: watch
+      POSTGRES_DB: watch
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watch"]
+      interval: 2s
+      retries: 30
+
+  # demo partner sftp server; remove when pointing at real ones
+  sftp:
+    image: atmoz/sftp
+    command: partner:partner:::upload
+    volumes:
+      - ./demo/sftp:/home/partner/upload
+
+  # demo mail server; alerts sent by email show up at http://localhost:8025
+  mail:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+
+volumes:
+  postgres:
+  delta:

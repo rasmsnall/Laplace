@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* moto-like neutrals: warm near-black and a cool pale grey */
+  --color-ink-950: #0b0c07;
+  --color-ink-900: #10110c;
+  --color-ink-850: #151610;
+  --color-ink-800: #1b1c16;
+  --color-ink-700: #272822;
+  --color-ink-600: #383933;
+
+  --color-fog-100: #e1e5e5;
+  --color-fog-300: #b9bdbc;
+  --color-fog-500: #878b88;
+  --color-fog-700: #5a5d59;
+
+  --color-gold-300: #eed07a;
+  --color-gold-400: #e4bb4f;
+  --color-gold-500: #d4a537;
+  --color-gold-700: #7d5d1d;
+
+  --color-line: rgb(225 229 229 / 0.07);
+}
+
+:root {
+  color-scheme: dark;
+  --grid: rgb(225 229 229 / 0.045);
+  --tick: rgb(225 229 229 / 0.35);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --grid: rgb(11 12 7 / 0.06);
+  --tick: rgb(11 12 7 / 0.35);
+
+  --color-ink-950: #e6e9e9;
+  --color-ink-900: #dde1e1;
+  --color-ink-850: #d5dada;
+  --color-ink-800: #ccd1d1;
+  --color-ink-700: #b8bdbd;
+  --color-ink-600: #a3a8a8;
+
+  --color-fog-100: #0b0c07;
+  --color-fog-300: #30322c;
+  --color-fog-500: #5d605b;
+  --color-fog-700: #8b8f8a;
+
+  --color-gold-300: #7a5906;
+  --color-gold-400: #8c6508;
+  --color-gold-500: #b8860b;
+
+  --color-red-300: #a8201a;
+  --color-red-400: #b91c1c;
+
+  --color-line: rgb(11 12 7 / 0.09);
+}
+
+body {
+  @apply bg-ink-950 font-sans text-fog-100 antialiased;
+}
+
+.wide {
+  font-stretch: 125%;
+}
+
+.grid-lines {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+/* corner ticks instead of a full border */
+.brackets {
+  background-image:
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick));
+  background-repeat: no-repeat;
+  background-size: 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px;
+  background-position: top left, top left, top right, top right, bottom left, bottom left, bottom right, bottom right;
+}
+
+@keyframes refresh {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+.refresh-bar {
+  animation: refresh 15s linear forwards;
+}
+
+@keyframes live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.live-dot {
+  animation: live 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh-bar, .live-dot { animation: none; }
+  .refresh-bar { width: 100%; }
+}

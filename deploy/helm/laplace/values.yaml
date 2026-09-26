@@ -1,0 +1,74 @@
+# laplace needs postgres (e.g. azure database for postgresql flexible server); it is not part of
+# this chart. secrets never go in this file: create kubernetes secrets and name them below.
+
+image:
+  repository: laplace
+  tag: ""          # defaults to the chart's appVersion
+  pullPolicy: IfNotPresent
+
+replicas: 2
+
+# the address people and jobs use; needed for sign-in callbacks and the connect panel
+publicUrl: ""
+
+secrets:
+  # environment variables for the app, e.g. DATABASE_URL (a role that reads and writes tables but
+  # cannot change them), LAPLACE_SESSION_KEY, LAPLACE_OIDC_CLIENT_SECRET, ALERT_WEBHOOK,
+  # DATABRICKS_TOKEN, LAPLACE_HEARTBEAT_URL, LAPLACE_GRAPH_CLIENT_SECRET or LAPLACE_SMTP_URL,
+  # and each owner's webhook variable
+  app: laplace
+  # DATABASE_URL for the schema owner, used only by the migration job
+  migrations: laplace-migrations
+
+# plain settings, passed as environment variables
+env:
+  LAPLACE_TIMEZONE: Europe/Stockholm
+  # LAPLACE_OIDC_ISSUER: https://login.microsoftonline.com/<tenant>/v2.0
+  # LAPLACE_OIDC_CLIENT_ID: <application id>
+  # LAPLACE_OIDC_ALLOWED_DOMAINS: company.se,company.fi
+  # LAPLACE_ADMINS: someone@company.se
+  # DELTA_URI: abfss://laplace@account.dfs.core.windows.net/history
+  # DATABRICKS_HOST: https://adb-<id>.azuredatabricks.net
+  # LAPLACE_MAIL_FROM: laplace@company.se
+  # LAPLACE_GRAPH_TENANT_ID: <tenant id>
+  # LAPLACE_GRAPH_CLIENT_ID: <application id>
+  # ALERT_EMAIL: it-ops@company.se
+
+# flows.toml, kept in git and mounted from a configmap; a change rolls the pods
+flows: |
+  [[flow]]
+  id = "example"
+  kind = "heartbeat"
+  every = "1d"
+
+migrations:
+  # run `laplace migrate` as a job before each install and upgrade
+  enabled: true
+
+ingress:
+  enabled: false
+  className: ""
+  host: laplace.example.com
+  annotations: {}
+  # a secret holding the certificate; tls should always be on outside a test cluster
+  tlsSecret: ""
+
+metrics:
+  # a prometheus-operator servicemonitor for the internal port
+  serviceMonitor: false
+
+networkPolicy:
+  # only the ingress controller reaches the web port, only prometheus the ops port
+  enabled: false
+  ingressNamespace: ingress-nginx
+  prometheusNamespace: monitoring
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+podDisruptionBudget:
+  minAvailable: 1

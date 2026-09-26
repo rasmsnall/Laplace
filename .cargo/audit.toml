@@ -1,0 +1,11 @@
+# advisories accepted after review; see SECURITY.md. remove an entry as soon as a fix can be used.
+[advisories]
+ignore = [
+    # rsa, marvin timing attack: openidconnect only verifies signatures with public keys, and
+    # laplace holds no rsa private keys. no fixed version exists.
+    "RUSTSEC-2023-0071",
+    # quick-xml 0.39 denial of service: parses listing responses from azure and gcs over tls,
+    # pulled in by object_store 0.13, which deltalake 0.32 pins. revisit when deltalake moves on.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+]

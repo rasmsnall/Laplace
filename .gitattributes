@@ -1,0 +1,3 @@
+# lf everywhere, so scripts and the docker build work the same from windows and linux
+* text=auto eol=lf
+*.gz binary

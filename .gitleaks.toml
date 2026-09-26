@@ -1,0 +1,12 @@
+# gitleaks defaults, minus the throwaway demo passwords that SECURITY.md allows
+[extend]
+useDefault = true
+
+[allowlist]
+description = "local demo containers and build output"
+paths = [
+    '''target/''',
+    '''web/node_modules/''',
+    '''web/dist/''',
+    '''demo/''',
+]
