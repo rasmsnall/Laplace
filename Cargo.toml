@@ -12,7 +12,7 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 cookie = "0.18"
 croner = "4"
-deltalake = { version = "0.32", features = ["azure", "gcs"] }
+deltalake = { version = "1.0", features = ["azure", "gcs"] }
 futures = "0.3"
 glob = "0.3"
 humantime = "2"
