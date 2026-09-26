@@ -1,0 +1,56 @@
+# laplace's postgres, run by cloudnativepg inside the cluster: a primary and a standby on
+# different nodes, failover by the operator, and continuous backups to the object store in
+# backups.yaml. two roles, as SECURITY.md asks: laplace_owner migrates, laplace_app only
+# reads and writes.
+#
+# before applying, create the app role's password (the owner's is made by the operator):
+#   kubectl create secret generic laplace-db-app-role --type=kubernetes.io/basic-auth \
+#     --from-literal=username=laplace_app --from-literal=password="$(openssl rand -hex 24)"
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: laplace-db
+spec:
+  instances: 2
+  storage:
+    size: 10Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: preferred
+  # a primary going away drops its clients after 15s instead of waiting for them; laplace
+  # reconnects to the new primary on its own, so a failover takes seconds, not minutes
+  smartShutdownTimeout: 15
+  stopDelay: 120
+
+  bootstrap:
+    initdb:
+      database: laplace
+      # the operator creates this role and puts its password in the secret laplace-db-app
+      owner: laplace_owner
+      postInitApplicationSQL:
+        - create role laplace_app nologin
+        - grant usage on schema public to laplace_app
+        # tables the migrations create later are readable and writable by the app, nothing more
+        - >-
+          alter default privileges for role laplace_owner in schema public
+          grant select, insert, update, delete on tables to laplace_app
+        - >-
+          alter default privileges for role laplace_owner in schema public
+          grant usage, select on sequences to laplace_app
+
+  managed:
+    roles:
+      - name: laplace_app
+        ensure: present
+        login: true
+        passwordSecret:
+          name: laplace-db-app-role
+
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: laplace-backups

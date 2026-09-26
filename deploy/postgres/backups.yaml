@@ -1,0 +1,42 @@
+# where laplace-db archives its write-ahead log continuously and a full backup every night,
+# so it can be restored to any moment in the last 30 days (see restore.yaml).
+#
+# this points at an azure storage account, such as the adls account the delta history
+# already lives in. the key stays in a secret:
+#   kubectl create secret generic laplace-backup-storage \
+#     --from-literal=account=<storage account> --from-literal=key=<access key>
+# with workload identity, replace azureCredentials with `inheritFromAzureAD: true`.
+# any s3-compatible store works too; deploy/test/cnpg-minio.yaml shows one.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: laplace-backups
+spec:
+  retentionPolicy: 30d
+  configuration:
+    destinationPath: https://<storage account>.blob.core.windows.net/laplace-backups
+    azureCredentials:
+      storageAccount:
+        name: laplace-backup-storage
+        key: account
+      storageKey:
+        name: laplace-backup-storage
+        key: key
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: laplace-db-nightly
+spec:
+  # seconds first: every night at 01:00
+  schedule: "0 0 1 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: laplace-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

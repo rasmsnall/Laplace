@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{Context, Result};
 use axum::http::{HeaderValue, header::CACHE_CONTROL};
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeader;
 
@@ -159,10 +159,19 @@ async fn main() -> Result<()> {
     }
 }
 
+/// DATABASE_URL, or the standard PGHOST, PGUSER, PGPASSWORD, PGDATABASE and PGSSLMODE,
+/// which let a password come straight from a secret an operator made
 async fn connect(max_connections: u32) -> Result<sqlx::PgPool> {
+    let options = match optional_env("DATABASE_URL") {
+        Some(url) => url
+            .parse()
+            .context("DATABASE_URL is not a valid postgres url")?,
+        None if optional_env("PGHOST").is_some() => PgConnectOptions::new(),
+        None => anyhow::bail!("set DATABASE_URL, or PGHOST and the other PG variables"),
+    };
     Ok(PgPoolOptions::new()
         .max_connections(max_connections)
-        .connect(&std::env::var("DATABASE_URL").context("DATABASE_URL is not set")?)
+        .connect_with(options)
         .await?)
 }
 

@@ -11,6 +11,23 @@ replicas: 2
 # the address people and jobs use; needed for sign-in callbacks and the connect panel
 publicUrl: ""
 
+# a postgres the chart reads its connection from, such as the cloudnativepg cluster in
+# deploy/postgres. when host is set, DATABASE_URL is not needed in the secrets, and the
+# migrations secret is not used at all
+database:
+  host: ""                  # e.g. laplace-db-rw
+  port: 5432
+  name: laplace
+  sslmode: require
+  app:
+    user: laplace_app
+    passwordSecret: ""      # e.g. laplace-db-app-role, which you create
+    passwordKey: password
+  migrations:
+    user: laplace_owner
+    passwordSecret: ""      # e.g. laplace-db-app, which cloudnativepg creates for the owner
+    passwordKey: password
+
 secrets:
   # environment variables for the app, e.g. DATABASE_URL (a role that reads and writes tables but
   # cannot change them), LAPLACE_SESSION_KEY, LAPLACE_OIDC_CLIENT_SECRET, ALERT_WEBHOOK,

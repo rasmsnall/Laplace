@@ -28,9 +28,14 @@ spec:
           image: {{ include "laplace.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["migrate"]
+          {{- if .Values.database.host }}
+          env:
+            {{- include "laplace.database" (dict "root" . "name" "migrations" "role" .Values.database.migrations) | nindent 12 }}
+          {{- else }}
           envFrom:
             - secretRef:
                 name: {{ .Values.secrets.migrations }}
+          {{- end }}
           securityContext:
             {{- include "laplace.containerSecurity" . | nindent 12 }}
           resources:

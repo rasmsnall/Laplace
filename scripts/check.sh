@@ -35,4 +35,7 @@ docker run --rm -v "$PWD/deploy/helm:/charts" alpine/helm:latest template ci /ch
     --set ingress.enabled=true --set networkPolicy.enabled=true > target/laplace-chart.yaml
 docker run --rm -v "$PWD/target:/work" ghcr.io/yannh/kubeconform:latest -strict -summary /work/laplace-chart.yaml
 
+step "postgres manifests"
+docker run --rm -v "$PWD/deploy:/deploy" ghcr.io/yannh/kubeconform:latest -strict -summary     -schema-location default     -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'     /deploy/postgres /deploy/test/cnpg-azurite.yaml
+
 printf '\nall checks passed\n'

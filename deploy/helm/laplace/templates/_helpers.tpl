@@ -18,6 +18,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
 {{- end -}}
 
+{{/*
+the PG variables for one database role, when database.host is set; the password comes
+straight from the secret that holds it, such as one cloudnativepg made
+*/}}
+{{- define "laplace.database" -}}
+{{- $db := .root.Values.database -}}
+- name: PGHOST
+  value: {{ $db.host | quote }}
+- name: PGPORT
+  value: {{ $db.port | quote }}
+- name: PGDATABASE
+  value: {{ $db.name | quote }}
+- name: PGSSLMODE
+  value: {{ $db.sslmode | quote }}
+- name: PGUSER
+  value: {{ .role.user | quote }}
+- name: PGPASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ required (printf "database.%s.passwordSecret is needed with database.host" .name) .role.passwordSecret }}
+      key: {{ .role.passwordKey }}
+{{- end -}}
+
 {{/* the same locked-down settings for the app and the migration job */}}
 {{- define "laplace.podSecurity" -}}
 runAsNonRoot: true
