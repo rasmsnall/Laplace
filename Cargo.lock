@@ -2409,7 +2409,7 @@ dependencies = [
  "lettre",
  "object_store",
  "openidconnect",
- "rand 0.9.5",
+ "rand 0.10.2",
  "reqwest 0.13.5",
  "serde",
  "serde_json",
