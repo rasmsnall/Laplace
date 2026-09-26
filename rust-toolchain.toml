@@ -1,0 +1,4 @@
+# one compiler for local runs and ci, so a new clippy lint arrives as a deliberate bump, not a red build
+[toolchain]
+channel = "1.98"
+components = ["rustfmt", "clippy"]

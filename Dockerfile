@@ -7,7 +7,7 @@ RUN npm ci --no-audit --no-fund
 COPY web ./
 RUN npm run build
 
-FROM rust:1-bookworm AS build
+FROM rust:1.98-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./

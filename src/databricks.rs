@@ -110,7 +110,7 @@ pub async fn list_jobs(client: &reqwest::Client, workspace: &Workspace) -> Resul
             _ => break,
         }
     }
-    jobs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    jobs.sort_by_key(|job| job.name.to_lowercase());
     Ok(jobs)
 }
 
