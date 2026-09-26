@@ -2,7 +2,7 @@
 # this chart. secrets never go in this file: create kubernetes secrets and name them below.
 
 image:
-  repository: laplace
+  repository: ghcr.io/rasmsnall/laplace
   tag: ""          # defaults to the chart's appVersion
   pullPolicy: IfNotPresent
 

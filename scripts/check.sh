@@ -26,7 +26,7 @@ docker run --rm -v "$PWD:/repo" -w /repo rust:1-bookworm \
 
 step "dashboard advisories and build"
 docker run --rm -v "$PWD/web:/web" -w /web node:24-bookworm-slim \
-    sh -c "npm install --no-audit --no-fund --silent && npm audit --audit-level=high && npm run build"
+    sh -c "npm ci --no-audit --no-fund --silent && npm audit --audit-level=high && npm run build"
 
 step "flows.toml and helm chart"
 cargo run --quiet -- check flows.toml
