@@ -18,7 +18,7 @@ glob = "0.3"
 humantime = "2"
 humantime-serde = "1"
 openidconnect = "4"
-object_store = { version = "0.13", features = ["azure", "gcp"] }
+object_store = { version = "0.14", features = ["azure", "gcp"] }
 rand = "0.9"
 reqwest = { version = "0.13", features = ["form", "json"] }
 serde = { version = "1", features = ["derive"] }
