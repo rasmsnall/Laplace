@@ -100,7 +100,7 @@ export function Settings() {
 
   return (
     <section className="pt-12">
-      <h2 className="wide mb-8 text-2xl font-medium tracking-[0.2em] uppercase">settings</h2>
+      <h2 className="display mb-8 text-[32px] leading-tight">Settings</h2>
 
       {!overview.sso && (
         <p className="mb-8 border-l-2 border-gold-500 pl-3 text-[13px] text-gold-300">
@@ -229,7 +229,7 @@ export function Settings() {
 function Section({ title, hint, className = "", children }: { title: string; hint?: string; className?: string; children: ReactNode }) {
   return (
     <section className={className}>
-      <h3 className="font-mono text-[11px] tracking-[0.2em] text-fog-500 uppercase">{title}</h3>
+      <h3 className="text-[14px] font-medium text-fog-300">{title}</h3>
       {hint && <p className="mt-1 mb-3 text-[12px] text-fog-700">{hint}</p>}
       <div className={hint ? "" : "mt-3"}>{children}</div>
     </section>

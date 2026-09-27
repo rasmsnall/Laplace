@@ -218,28 +218,29 @@ export function App() {
 
   return (
     <div className="relative isolate min-h-screen">
-      <div className="grid-lines pointer-events-none absolute inset-x-0 top-0 -z-10 h-[560px]" />
+      <div className="dot-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px]" />
 
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 pt-6 sm:px-10">
-        <h1 className="flex items-baseline gap-3">
-          <span className="wide text-lg font-bold tracking-[0.3em] uppercase">laplace</span>
-          <span className="font-mono text-[11px] text-fog-500">monitoring</span>
-        </h1>
-        <nav className="mr-auto ml-6 flex gap-1 text-[13px]">
-          {(["overview", "reports", ...(may("admin") ? ["settings" as const] : [])] as View[]).map((page) => (
-            <a
-              key={page}
-              href={page === "overview" ? "#" : `#${page}`}
-              aria-current={view === page ? "page" : undefined}
-              className={`rounded-[4px] px-2.5 py-1 ${view === page ? "bg-ink-850 text-fog-100" : "text-fog-500 hover:text-fog-100"}`}
-            >
-              {page}
-            </a>
-          ))}
-        </nav>
-        <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-40 bg-ink-950 pt-3 pb-1">
+        <div className="mx-auto max-w-6xl px-5 sm:px-10">
+        <div className="relative flex h-12 items-center gap-3 overflow-hidden rounded-md border border-line bg-ink-850 pr-1.5 pl-4">
+          <h1 className="flex shrink-0 items-center gap-2.5">
+            <Logo />
+            <span className="display text-[17px]">laplace</span>
+          </h1>
+          <nav className="mr-auto ml-3 flex gap-0.5 text-[14px]">
+            {(["overview", "reports", ...(may("admin") ? ["settings" as const] : [])] as View[]).map((page) => (
+              <a
+                key={page}
+                href={page === "overview" ? "#" : `#${page}`}
+                aria-current={view === page ? "page" : undefined}
+                className={`rounded-[4px] px-2.5 py-1 font-medium ${view === page ? "text-fog-100" : "text-fog-500 hover:text-fog-100"}`}
+              >
+                {page}
+              </a>
+            ))}
+          </nav>
           <Clock />
-          <span className={`flex items-center gap-2 text-[13px] font-medium whitespace-nowrap ${problems ? "text-gold-400" : "text-fog-300"}`}>
+          <span className={`hidden items-center gap-2 text-[13px] font-medium whitespace-nowrap md:flex ${problems ? "text-gold-400" : "text-fog-300"}`}>
             <span className={`size-2 ${problems ? "bg-gold-500" : "bg-fog-500"}`} aria-hidden />
             {problems ? `${problems} need attention` : "all clear"}
           </span>
@@ -251,23 +252,19 @@ export function App() {
               </a>
             </span>
           )}
-          {may("editor") && (
-          <button
-            onClick={() => setConnecting(true)}
-            className="flex h-8 items-center gap-1.5 rounded-[4px] border border-ink-600 px-2.5 text-[13px] text-fog-300 transition hover:border-fog-700 hover:text-fog-100"
-          >
-            <Icon name="plug" className="size-3.5" />
-            connect
-          </button>
-          )}
           <ThemeToggle />
+          {may("editor") && (
+            <button onClick={() => setConnecting(true)} className="group flex h-9 shrink-0 items-stretch gap-0.5 text-[14px] font-medium text-black">
+              <span className="flex items-center rounded-l-[4px] bg-gold-500 px-3 transition group-hover:bg-gold-400">connect</span>
+              <span className="grid w-9 place-items-center rounded-r-[4px] bg-gold-500 transition group-hover:bg-gold-400">
+                <Icon name="plug" className="size-3.5" />
+              </span>
+            </button>
+          )}
+          {updated && <div key={updated.getTime()} className="refresh-bar absolute bottom-0 left-0 h-px bg-gold-500/70" />}
+        </div>
         </div>
       </header>
-      <div className="mx-auto mt-5 max-w-6xl px-5 sm:px-10">
-        <div className="h-px bg-ink-700">
-          {updated && <div key={updated.getTime()} className="refresh-bar h-px bg-gold-500/70" />}
-        </div>
-      </div>
 
       <main className="mx-auto max-w-6xl px-5 pb-28 sm:px-10">
         {view === "reports" ? (
@@ -281,37 +278,31 @@ export function App() {
           <p className="mt-8 border-l-2 border-red-500 pl-3 font-mono text-[12px] whitespace-pre-wrap text-red-300">{me.config_error}</p>
         )}
 
-        <section className="mt-12 grid gap-10 lg:grid-cols-12">
-          <div className="brackets p-6 lg:col-span-7">
-            <p className="font-mono text-[10px] tracking-[0.2em] text-fog-500 uppercase">needs attention</p>
-            <p
-              className={`wide mt-3 text-[clamp(5rem,14vw,10rem)] leading-[0.85] font-light tabular-nums ${
-                problems ? "text-gold-400" : "text-fog-100"
-              }`}
-            >
-              {String(problems).padStart(2, "0")}
-            </p>
-            <p className="mt-5 font-mono text-[12px] text-fog-300">
-              {count("failed")} failed, {count("late")} late, {count("warning")} warning, of {all.length} flows
-            </p>
-          </div>
-
-          <dl className="self-end border-t border-ink-700 font-mono text-[13px] lg:col-span-4 lg:col-start-9">
-            <Readout label="failed" value={count("failed")} tone={count("failed") ? "text-red-400" : undefined} />
-            <Readout label="late" value={count("late")} tone={count("late") ? "text-gold-400" : undefined} />
-            <Readout label="warning" value={count("warning")} tone={count("warning") ? "text-gold-300" : undefined} />
-            <Readout label="blocked" value={count("blocked")} />
-            {count("maintenance") > 0 && <Readout label="maintenance" value={count("maintenance")} />}
-            <Readout label="ok" value={count("ok")} />
-            <Readout label="pending" value={count("pending")} />
-          </dl>
+        <section className="mt-16">
+          <h2 className="display text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.02]">
+            {problems ? `${problems} ${problems === 1 ? "flow needs" : "flows need"} attention` : "All clear"}
+          </h2>
+          <p className="mt-4 text-[17px] text-fog-300">
+            {all.length} flows watched. {count("failed")} failed, {count("late")} late, {count("warning")} warning.
+          </p>
         </section>
+
+        <section className="mt-10 grid grid-cols-2 border border-line lg:grid-cols-4">
+          <Tile tone="gold" value={problems} label="Needs attention" />
+          <Tile tone="ink" value={count("failed")} label="Failed" alert={count("failed") > 0} />
+          <Tile tone="slate" value={count("late")} label="Late" />
+          <Tile tone="paper" value={count("ok")} label="Ok" />
+        </section>
+        <p className="mt-3 font-mono text-[12px] text-fog-500">
+          {count("warning")} warning · {count("blocked")} blocked · {count("pending")} pending
+          {count("maintenance") > 0 && ` · ${count("maintenance")} in maintenance`}
+        </p>
 
         <Pipelines flows={all} />
 
         <section className="pt-16">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-            <h2 className="wide text-2xl font-medium tracking-[0.2em] uppercase">flows</h2>
+            <h2 className="display text-[32px] leading-tight">Flows</h2>
             {updated && (
               <p className="flex items-center gap-2 font-mono text-[11px] text-fog-500">
                 <span className="live-dot size-1.5 bg-gold-500" aria-hidden />
@@ -897,12 +888,31 @@ function Clock() {
   );
 }
 
-function Readout({ label, value, tone }: { label: string; value: number; tone?: string }) {
+/** solid blocks like deepbook's stat row; ink and paper swap with the theme */
+const tileTone = {
+  gold: "bg-gold-500 text-black",
+  ink: "bg-ink-950 text-fog-100",
+  slate: "bg-slate-500 text-white",
+  paper: "bg-fog-100 text-ink-950",
+};
+
+function Tile({ value, label, tone, alert }: { value: number; label: string; tone: keyof typeof tileTone; alert?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between border-b border-ink-700 py-3">
-      <dt className="text-[10px] tracking-[0.2em] text-fog-500 uppercase">{label}</dt>
-      <dd className={`text-2xl tabular-nums ${tone ?? "text-fog-100"}`}>{value}</dd>
+    <div className={`corners flex min-h-44 flex-col justify-between p-5 ${tileTone[tone]}`}>
+      <span className={`display text-[clamp(2.75rem,5vw,4rem)] leading-none tabular-nums ${alert ? "text-red-400" : ""}`}>{value}</span>
+      <span className="text-[14px] font-medium">{label}</span>
     </div>
+  );
+}
+
+/** three bars of shrinking width: runs lined up on a timeline */
+function Logo() {
+  return (
+    <svg width="18" height="16" viewBox="0 0 18 16" aria-hidden className="text-gold-500">
+      <rect width="18" height="4" rx="1" fill="currentColor" />
+      <rect y="6" width="13" height="4" rx="1" fill="currentColor" />
+      <rect y="12" width="8" height="4" rx="1" fill="currentColor" />
+    </svg>
   );
 }
 

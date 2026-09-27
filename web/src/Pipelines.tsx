@@ -54,7 +54,7 @@ export function Pipelines({ flows }: { flows: PipelineFlow[] }) {
 
   return (
     <section className="pt-16">
-      <h2 className="wide mb-4 text-2xl font-medium tracking-[0.2em] uppercase">pipelines</h2>
+      <h2 className="display mb-5 text-[32px] leading-tight">Pipelines</h2>
       <div className="space-y-3">
         {all.map((steps) => (
           <div key={steps[0][0].id} className="overflow-x-auto rounded-lg border border-line bg-ink-950 p-4">

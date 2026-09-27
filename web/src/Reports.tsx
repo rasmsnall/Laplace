@@ -76,7 +76,7 @@ export function Reports({ month: linked }: { month: string | null }) {
   return (
     <section className="pt-12">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <h2 className="wide text-2xl font-medium tracking-[0.2em] uppercase">reports</h2>
+        <h2 className="display text-[32px] leading-tight">Reports</h2>
         <div className="flex items-center gap-1 font-mono text-[13px]">
           <span className="mr-3 font-sans">
             <CopyLink link={shareLink({ reports: "", month })} />
@@ -112,7 +112,7 @@ export function Reports({ month: linked }: { month: string | null }) {
       {report &&
         owners.map((owner) => (
           <div key={owner} className="mb-8">
-            <h3 className="mb-2 font-mono text-[11px] tracking-[0.2em] text-fog-500 uppercase">{owner}</h3>
+            <h3 className="mb-2 text-[14px] font-medium text-fog-300">{owner}</h3>
             <div className="overflow-x-auto rounded-lg border border-line">
               <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
                 <thead className="bg-ink-900 text-fog-300">
@@ -177,8 +177,8 @@ export function Reports({ month: linked }: { month: string | null }) {
 function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
     <div>
-      <p className="font-mono text-[10px] tracking-[0.2em] text-fog-500 uppercase">{label}</p>
-      <p className={`wide mt-2 text-4xl font-light tabular-nums ${tone ?? "text-fog-100"}`}>{value}</p>
+      <p className="text-[14px] text-fog-500">{label}</p>
+      <p className={`display mt-2 text-4xl tabular-nums ${tone ?? "text-fog-100"}`}>{value}</p>
     </div>
   );
 }
