@@ -101,6 +101,11 @@ impl Schedule {
         }
     }
 
+    /// the first occurrence after `now`
+    pub fn next(&self, now: DateTime<Utc>) -> Result<Option<DateTime<Utc>>> {
+        self.after(now.with_timezone(&self.zone))
+    }
+
     /// the last occurrence at or before `now`
     pub fn latest(&self, now: DateTime<Utc>) -> Result<Option<DateTime<Utc>>> {
         self.at_or_before(now.with_timezone(&self.zone))

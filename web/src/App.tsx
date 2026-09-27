@@ -3,7 +3,8 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { Connect } from "./Connect";
 import { FlowActions, type Acknowledged } from "./FlowActions";
 import { CopyLink } from "./CopyLink";
-import { Reveal, RiseWords, TickField, useCountUp } from "./Motion";
+import { Reveal, RiseWords, TickField } from "./Motion";
+import { Tile } from "./Tile";
 import { go, shareLink, useRoute, type View } from "./route";
 import { Pipelines } from "./Pipelines";
 import { Reports } from "./Reports";
@@ -222,6 +223,7 @@ export function App() {
   const attention = all.filter((f) => needsAttention(f.state) && !f.acknowledged);
 
   const showOnly = (label: string, test: (flow: Flow) => boolean) => {
+    if (only?.label === label) return setOnly(null);
     setOnly({ label, test });
     const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     document.getElementById("flows")?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
@@ -299,10 +301,10 @@ export function App() {
         </section>
 
         <section className="mt-10 grid grid-cols-2 border border-line lg:grid-cols-4">
-          <Tile tone="gold" value={problems} label="Needs attention" onClick={() => showOnly("needs attention", (f) => needsAttention(f.state) && !f.acknowledged)} />
-          <Tile tone="ink" value={count("failed")} label="Failed" alert={count("failed") > 0} onClick={() => showOnly("failed", (f) => f.state === "failed")} />
-          <Tile tone="slate" value={count("late")} label="Late" onClick={() => showOnly("late", (f) => f.state === "late")} />
-          <Tile tone="paper" value={count("ok")} label="Ok" onClick={() => showOnly("ok", (f) => f.state === "ok")} />
+          <Tile tone="gold" value={problems} label="Needs attention" active={only?.label === "needs attention"} onClick={() => showOnly("needs attention", (f) => needsAttention(f.state) && !f.acknowledged)} />
+          <Tile tone="ink" value={count("failed")} label="Failed" alert={count("failed") > 0} active={only?.label === "failed"} onClick={() => showOnly("failed", (f) => f.state === "failed")} />
+          <Tile tone="slate" value={count("late")} label="Late" active={only?.label === "late"} onClick={() => showOnly("late", (f) => f.state === "late")} />
+          <Tile tone="paper" value={count("ok")} label="Ok" active={only?.label === "ok"} onClick={() => showOnly("ok", (f) => f.state === "ok")} />
         </section>
         <p className="mt-3 font-mono text-[12px] text-fog-500">
           {count("warning")} warning · {count("blocked")} blocked · {count("pending")} pending
@@ -910,39 +912,6 @@ function Clock() {
     <span className="hidden font-mono text-[11px] whitespace-nowrap text-fog-500 tabular-nums xl:inline">
       {now.toISOString().slice(0, 19).replace("T", " ")} utc
     </span>
-  );
-}
-
-/** solid blocks like deepbook's stat row; ink and paper swap with the theme */
-const tileTone = {
-  gold: "bg-gold-500 text-black",
-  ink: "bg-ink-950 text-fog-100",
-  slate: "bg-slate-500 text-white",
-  paper: "bg-fog-100 text-ink-950",
-};
-
-interface TileProps {
-  value: number;
-  label: string;
-  tone: keyof typeof tileTone;
-  alert?: boolean;
-  onClick: () => void;
-}
-
-/** a stat block; clicking it shows those flows in the table */
-function Tile({ value, label, tone, alert, onClick }: TileProps) {
-  const shown = useCountUp(value);
-  return (
-    <button
-      onClick={onClick}
-      className={`corners group flex min-h-44 flex-col justify-between p-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-inset ${tileTone[tone]}`}
-    >
-      <span className={`display text-[clamp(2.75rem,5vw,4rem)] leading-none tabular-nums ${alert ? "text-red-400" : ""}`}>{shown}</span>
-      <span className="flex items-center gap-1.5 text-[14px] font-medium">
-        {label}
-        <Icon name="arrow" className="size-3.5 -translate-x-1 opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
-      </span>
-    </button>
   );
 }
 

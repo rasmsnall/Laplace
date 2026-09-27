@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Days, TimeDelta, Utc};
+use chrono_tz::Tz;
 use serde::Serialize;
 use sqlx::PgPool;
 
@@ -28,9 +29,11 @@ pub struct FlowReport {
     pub mean_recovery_seconds: Option<i64>,
     pub runs_ok: i64,
     pub runs_failed: i64,
+    /// uptime of each day of the period, none for a day with nothing measured or still to come
+    pub days: Vec<Option<f64>>,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Clone)]
 struct Change {
     flow: String,
     at: DateTime<Utc>,
@@ -52,6 +55,7 @@ pub async fn build(
     flows: &[Flow],
     from: DateTime<Utc>,
     to: DateTime<Utc>,
+    zone: Tz,
 ) -> Result<Report> {
     let until = to.min(Utc::now());
 
@@ -88,10 +92,8 @@ pub async fn build(
     let flows = flows
         .iter()
         .map(|flow| {
-            let summary = summarize(
-                by_flow.get(&flow.id).map(Vec::as_slice).unwrap_or_default(),
-                until,
-            );
+            let changes = by_flow.get(&flow.id).map(Vec::as_slice).unwrap_or_default();
+            let summary = summarize(changes, until);
             let (runs_ok, runs_failed) = runs.get(&flow.id).copied().unwrap_or_default();
             FlowReport {
                 id: flow.id.clone(),
@@ -108,11 +110,62 @@ pub async fn build(
                 mean_recovery_seconds: summary.mean_recovery.map(|d| d.num_seconds()),
                 runs_ok,
                 runs_failed,
+                days: daily(changes, from, to, until, zone),
             }
         })
         .collect();
 
     Ok(Report { from, to, flows })
+}
+
+/// the period cut into local days, each summarized on its own
+fn daily(
+    changes: &[Change],
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+    until: DateTime<Utc>,
+    zone: Tz,
+) -> Vec<Option<f64>> {
+    let mut days = Vec::new();
+    let mut start = from;
+    while start < to {
+        let end = start
+            .with_timezone(&zone)
+            .date_naive()
+            .checked_add_days(Days::new(1))
+            .and_then(|next| next.and_hms_opt(0, 0, 0))
+            .and_then(|midnight| midnight.and_local_timezone(zone).earliest())
+            .map_or(to, |end| end.with_timezone(&Utc))
+            .min(to);
+        days.push(
+            (start < until)
+                .then(|| day(changes, start, end.min(until)))
+                .flatten(),
+        );
+        start = end;
+    }
+    days
+}
+
+/// the state a flow was in when the day began, then its changes during the day
+fn day(changes: &[Change], start: DateTime<Utc>, end: DateTime<Utc>) -> Option<f64> {
+    let mut clipped: Vec<Change> = changes
+        .iter()
+        .rev()
+        .find(|change| change.at <= start)
+        .map(|change| Change {
+            at: start,
+            ..change.clone()
+        })
+        .into_iter()
+        .collect();
+    clipped.extend(
+        changes
+            .iter()
+            .filter(|change| change.at > start && change.at < end)
+            .cloned(),
+    );
+    summarize(&clipped, end).uptime
 }
 
 struct Summary {
@@ -191,6 +244,21 @@ mod tests {
         assert_eq!(summary.incidents, 2);
         assert_eq!(summary.longest_outage, TimeDelta::hours(4));
         assert_eq!(summary.mean_recovery, Some(TimeDelta::hours(2)));
+    }
+
+    #[test]
+    fn cuts_the_period_into_days() {
+        // ok, then late from 06:00 to 18:00 on the second day, ok again; the fourth day is to come
+        let changes = [change(0, "ok"), change(30, "late"), change(42, "ok")];
+        let from = DateTime::UNIX_EPOCH;
+        let days = daily(
+            &changes,
+            from,
+            from + TimeDelta::days(4),
+            from + TimeDelta::days(3),
+            chrono_tz::UTC,
+        );
+        assert_eq!(days, vec![Some(1.0), Some(0.5), Some(1.0), None]);
     }
 
     #[test]

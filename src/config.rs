@@ -48,6 +48,16 @@ impl Maintenance {
             .any(|pattern| glob::Pattern::new(pattern).is_ok_and(|pattern| pattern.matches(flow)))
     }
 
+    /// when the window next opens after `now`
+    pub fn next_opening(
+        &self,
+        default_zone: chrono_tz::Tz,
+        now: DateTime<Utc>,
+    ) -> Result<Option<DateTime<Utc>>> {
+        let zone = Schedule::zone(self.timezone.as_deref(), default_zone)?;
+        Schedule::parse(&self.cron, self.cron_style, zone, &[])?.next(now)
+    }
+
     /// when the window that is open at `now` closes, if one is
     pub fn open_until(
         &self,
@@ -362,6 +372,15 @@ mod tests {
             Some(stockholm(27, 4, 0))
         );
         assert_eq!(window.open_until(zone, stockholm(27, 4, 0)).unwrap(), None);
+        assert_eq!(
+            window.next_opening(zone, stockholm(27, 3, 0)).unwrap(),
+            Some(
+                chrono_tz::Europe::Stockholm
+                    .with_ymd_and_hms(2026, 10, 4, 2, 0, 0)
+                    .unwrap()
+                    .with_timezone(&Utc)
+            )
+        );
         assert!(window.covers("bank-statements"));
         assert!(!window.covers("erp-api"));
     }

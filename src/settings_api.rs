@@ -52,6 +52,7 @@ struct Window {
     lasts: String,
     flows: Vec<String>,
     open_until: Option<DateTime<Utc>>,
+    next_open: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize)]
@@ -123,6 +124,7 @@ async fn overview(
             lasts: crate::human::duration(window.lasts),
             flows: window.flows.clone(),
             open_until: window.open_until(zone, Utc::now()).ok().flatten(),
+            next_open: window.next_opening(zone, Utc::now()).ok().flatten(),
         })
         .collect();
     maintenance.sort_by(|a, b| a.name.cmp(&b.name));
