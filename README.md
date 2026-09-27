@@ -280,7 +280,10 @@ without sign-in everyone is an admin, which only suits running laplace on your o
 see `SECURITY.md` for the rules changes must follow, and run `scripts/check.sh` before merging.
 github actions runs the same script on every push and pull request. each push to `main` then
 publishes `ghcr.io/rasmsnall/laplace:main` and `:sha-<commit>`; a tag such as `v0.1.0` publishes
-`:0.1.0`, the version the helm chart's `appVersion` points at. dependabot opens weekly updates.
+`:0.1.0`, the version the helm chart's `appVersion` points at. dependabot opens weekly updates;
+patch updates, and minor ones of packages at 1.0 or above, merge by themselves once ci passes,
+and the rest wait for a person. `:main` is also rebuilt every monday, so those merges and fixes
+in the base image reach the image.
 
 ## beyond localhost
 

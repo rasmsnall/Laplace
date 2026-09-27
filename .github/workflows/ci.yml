@@ -5,6 +5,10 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  # merges by github's own bot, such as dependabot auto-merges, start no workflows, so the
+  # image is rebuilt weekly as well; that also picks up fixes in the debian base image
+  schedule:
+    - cron: "0 5 * * 1"
 
 # nothing may write unless a job asks for it
 permissions:
@@ -30,7 +34,7 @@ jobs:
 
   image:
     needs: checks
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -52,7 +56,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/laplace
           # main gets main and sha-<commit>; a tag v0.2.0 gets 0.2.0, which the helm chart's appVersion names
           tags: |
-            type=ref,event=branch
+            type=raw,value=main,enable={{is_default_branch}}
             type=sha
             type=semver,pattern={{version}}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
