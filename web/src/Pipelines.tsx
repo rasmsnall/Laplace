@@ -48,6 +48,25 @@ function pipelines(flows: PipelineFlow[]) {
   return [...groups.values()];
 }
 
+const BROKEN = new Set(["failed", "late", "blocked", "maintenance"]);
+
+/** dashes run along a link while the step before it is healthy; a broken step stops them */
+function Link({ broken }: { broken: boolean }) {
+  return (
+    <svg width="40" height="8" viewBox="0 0 40 8" className={`shrink-0 ${broken ? "text-red-400/70" : "text-gold-500"}`} aria-hidden>
+      <path
+        d="M0 4h35"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray={broken ? undefined : "4 4"}
+        className={broken ? "" : "flow-dash"}
+      />
+      <path d="M31 1l4 3-4 3" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export function Pipelines({ flows }: { flows: PipelineFlow[] }) {
   const all = pipelines(flows);
   if (all.length === 0) return null;
@@ -61,11 +80,7 @@ export function Pipelines({ flows }: { flows: PipelineFlow[] }) {
             <div className="flex min-w-max items-center gap-3">
               {steps.map((step, i) => (
                 <Fragment key={i}>
-                  {i > 0 && (
-                    <svg width="32" height="8" viewBox="0 0 32 8" className="shrink-0 text-fog-700" aria-hidden>
-                      <path d="M0 4h28M24 1l4 3-4 3" fill="none" stroke="currentColor" strokeWidth="1.25" />
-                    </svg>
-                  )}
+                  {i > 0 && <Link broken={steps[i - 1].some((flow) => BROKEN.has(flow.state))} />}
                   <div className="flex flex-col gap-2">
                     {step.map((flow) => (
                       <div

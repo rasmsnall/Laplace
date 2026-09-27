@@ -31,11 +31,18 @@
 :root {
   color-scheme: dark;
   --dot: rgb(255 255 255 / 0.14);
+  /* plain colours for the canvas tick field */
+  --field-tick: #8c8c8c;
+  --field-gold: #f5b400;
+  --field-red: #f04438;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
   --dot: rgb(0 0 0 / 0.16);
+  --field-tick: #7a7a7a;
+  --field-gold: #d99e00;
+  --field-red: #c8261c;
 
   --color-ink-950: #ffffff;
   --color-ink-900: #f5f5f5;
@@ -84,6 +91,41 @@ body {
   background-position: top 14px right 14px, bottom 14px right 14px;
 }
 
+.field-mask {
+  mask-image: linear-gradient(to bottom, black 35%, transparent);
+}
+
+/* headline words slide up out of a clipped line, as deepbook's split text does */
+@keyframes rise {
+  from { transform: translateY(105%); }
+  to { transform: none; }
+}
+
+.rise {
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* sections ease into place the first time they scroll into view */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* dashes running along a pipeline link whose upstream step is healthy */
+@keyframes dash {
+  to { stroke-dashoffset: -16; }
+}
+
+.flow-dash {
+  animation: dash 0.9s linear infinite;
+}
+
 @keyframes refresh {
   from { width: 0; }
   to { width: 100%; }
@@ -103,6 +145,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .refresh-bar, .live-dot { animation: none; }
+  .refresh-bar, .live-dot, .rise, .flow-dash { animation: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
   .refresh-bar { width: 100%; }
 }

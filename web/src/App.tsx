@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { Connect } from "./Connect";
 import { FlowActions, type Acknowledged } from "./FlowActions";
 import { CopyLink } from "./CopyLink";
+import { Reveal, RiseWords, TickField, useCountUp } from "./Motion";
 import { go, shareLink, useRoute, type View } from "./route";
 import { Pipelines } from "./Pipelines";
 import { Reports } from "./Reports";
@@ -158,6 +159,8 @@ export function App() {
   const { me, may } = useMe();
   const [kind, setKind] = useState("all");
   const [query, setQuery] = useState("");
+  /** set by clicking a stat tile; narrows the table to that state */
+  const [only, setOnly] = useState<{ label: string; test: (flow: Flow) => boolean } | null>(null);
   const [connecting, setConnecting] = useState(false);
   const closeConnect = useCallback(() => setConnecting(false), []);
   const [pane, setPane] = useState(0);
@@ -211,14 +214,22 @@ export function App() {
   const visible = all
     .filter((f) => kind === "all" || f.kind === kind)
     .filter((f) => matches(f, query))
+    .filter((f) => !only || only.test(f))
     .sort((a, b) => severity[a.state] - severity[b.state] || a.id.localeCompare(b.id));
   const count = (state: State) => all.filter((f) => f.state === state).length;
   const problems = all.filter((f) => needsAttention(f.state) && !f.acknowledged).length;
-  const filters = (kind === "all" ? 0 : 1) + (query ? 1 : 0);
+  const filters = (kind === "all" ? 0 : 1) + (query ? 1 : 0) + (only ? 1 : 0);
+  const attention = all.filter((f) => needsAttention(f.state) && !f.acknowledged);
+
+  const showOnly = (label: string, test: (flow: Flow) => boolean) => {
+    setOnly({ label, test });
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById("flows")?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+  };
 
   return (
     <div className="relative isolate min-h-screen">
-      <div className="dot-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px]" />
+      <TickField marks={attention.map((f) => ({ id: f.id, failed: f.state === "failed" }))} />
 
       <header className="sticky top-0 z-40 bg-ink-950 pt-3 pb-1">
         <div className="mx-auto max-w-6xl px-5 sm:px-10">
@@ -257,7 +268,7 @@ export function App() {
             <button onClick={() => setConnecting(true)} className="group flex h-9 shrink-0 items-stretch gap-0.5 text-[14px] font-medium text-black">
               <span className="flex items-center rounded-l-[4px] bg-gold-500 px-3 transition group-hover:bg-gold-400">connect</span>
               <span className="grid w-9 place-items-center rounded-r-[4px] bg-gold-500 transition group-hover:bg-gold-400">
-                <Icon name="plug" className="size-3.5" />
+                <Icon name="arrow" className="size-3.5 transition group-hover:translate-x-0.5" />
               </span>
             </button>
           )}
@@ -280,7 +291,7 @@ export function App() {
 
         <section className="mt-16">
           <h2 className="display text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.02]">
-            {problems ? `${problems} ${problems === 1 ? "flow needs" : "flows need"} attention` : "All clear"}
+            <RiseWords text={problems ? `${problems} ${problems === 1 ? "flow needs" : "flows need"} attention` : "All clear"} />
           </h2>
           <p className="mt-4 text-[17px] text-fog-300">
             {all.length} flows watched. {count("failed")} failed, {count("late")} late, {count("warning")} warning.
@@ -288,19 +299,22 @@ export function App() {
         </section>
 
         <section className="mt-10 grid grid-cols-2 border border-line lg:grid-cols-4">
-          <Tile tone="gold" value={problems} label="Needs attention" />
-          <Tile tone="ink" value={count("failed")} label="Failed" alert={count("failed") > 0} />
-          <Tile tone="slate" value={count("late")} label="Late" />
-          <Tile tone="paper" value={count("ok")} label="Ok" />
+          <Tile tone="gold" value={problems} label="Needs attention" onClick={() => showOnly("needs attention", (f) => needsAttention(f.state) && !f.acknowledged)} />
+          <Tile tone="ink" value={count("failed")} label="Failed" alert={count("failed") > 0} onClick={() => showOnly("failed", (f) => f.state === "failed")} />
+          <Tile tone="slate" value={count("late")} label="Late" onClick={() => showOnly("late", (f) => f.state === "late")} />
+          <Tile tone="paper" value={count("ok")} label="Ok" onClick={() => showOnly("ok", (f) => f.state === "ok")} />
         </section>
         <p className="mt-3 font-mono text-[12px] text-fog-500">
           {count("warning")} warning · {count("blocked")} blocked · {count("pending")} pending
           {count("maintenance") > 0 && ` · ${count("maintenance")} in maintenance`}
         </p>
 
-        <Pipelines flows={all} />
+        <Reveal>
+          <Pipelines flows={all} />
+        </Reveal>
 
-        <section className="pt-16">
+        <Reveal>
+        <section id="flows" className="scroll-mt-20 pt-16">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
             <h2 className="display text-[32px] leading-tight">Flows</h2>
             {updated && (
@@ -333,6 +347,16 @@ export function App() {
                 {visible.length}/{all.length} rows
               </ToolbarItem>
               <ToolbarItem icon="filter">{filters ? `${filters} filter${filters > 1 ? "s" : ""}` : "no filters"}</ToolbarItem>
+              {only && (
+                <button
+                  onClick={() => setOnly(null)}
+                  aria-label={`show all states, not only ${only.label}`}
+                  className="flex h-7 shrink-0 items-center gap-1.5 rounded-[4px] bg-gold-500 px-2 font-medium text-black hover:bg-gold-400"
+                >
+                  {only.label}
+                  <Icon name="close" className="size-3" />
+                </button>
+              )}
               <ToolbarItem icon="sort">status</ToolbarItem>
               <button
                 onClick={toggleTimeline}
@@ -569,6 +593,7 @@ export function App() {
             />
           )}
         </section>
+        </Reveal>
         </>
         )}
       </main>
@@ -896,12 +921,28 @@ const tileTone = {
   paper: "bg-fog-100 text-ink-950",
 };
 
-function Tile({ value, label, tone, alert }: { value: number; label: string; tone: keyof typeof tileTone; alert?: boolean }) {
+interface TileProps {
+  value: number;
+  label: string;
+  tone: keyof typeof tileTone;
+  alert?: boolean;
+  onClick: () => void;
+}
+
+/** a stat block; clicking it shows those flows in the table */
+function Tile({ value, label, tone, alert, onClick }: TileProps) {
+  const shown = useCountUp(value);
   return (
-    <div className={`corners flex min-h-44 flex-col justify-between p-5 ${tileTone[tone]}`}>
-      <span className={`display text-[clamp(2.75rem,5vw,4rem)] leading-none tabular-nums ${alert ? "text-red-400" : ""}`}>{value}</span>
-      <span className="text-[14px] font-medium">{label}</span>
-    </div>
+    <button
+      onClick={onClick}
+      className={`corners group flex min-h-44 flex-col justify-between p-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-inset ${tileTone[tone]}`}
+    >
+      <span className={`display text-[clamp(2.75rem,5vw,4rem)] leading-none tabular-nums ${alert ? "text-red-400" : ""}`}>{shown}</span>
+      <span className="flex items-center gap-1.5 text-[14px] font-medium">
+        {label}
+        <Icon name="arrow" className="size-3.5 -translate-x-1 opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+      </span>
+    </button>
   );
 }
 
