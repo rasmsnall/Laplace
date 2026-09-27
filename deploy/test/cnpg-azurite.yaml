@@ -1,0 +1,58 @@
+# stands in for azure storage when testing deploy/postgres in a local cluster: azurite,
+# microsoft's storage emulator, and an ObjectStore pointing at it instead of the real
+# account in backups.yaml. the key below is made up and only opens this emulator.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: laplace-backup-storage
+stringData:
+  AZURITE_ACCOUNTS: "laplacetest:dGVzdC1vbmx5LWF6dXJpdGUta2V5LW5vdC1hLXNlY3JldA=="
+  connectionString: "DefaultEndpointsProtocol=http;AccountName=laplacetest;AccountKey=dGVzdC1vbmx5LWF6dXJpdGUta2V5LW5vdC1hLXNlY3JldA==;BlobEndpoint=http://azurite:10000/laplacetest;"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azurite
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: azurite }
+  template:
+    metadata:
+      labels: { app: azurite }
+    spec:
+      containers:
+        - name: azurite
+          image: mcr.microsoft.com/azure-storage/azurite
+          command: ["azurite-blob", "--blobHost", "0.0.0.0", "--skipApiVersionCheck", "--loose"]
+          env:
+            - name: AZURITE_ACCOUNTS
+              valueFrom: { secretKeyRef: { name: laplace-backup-storage, key: AZURITE_ACCOUNTS } }
+          ports:
+            - containerPort: 10000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azurite
+spec:
+  selector: { app: azurite }
+  ports:
+    - port: 10000
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: laplace-backups
+spec:
+  retentionPolicy: 30d
+  configuration:
+    destinationPath: http://azurite:10000/laplacetest/laplace-backups
+    azureCredentials:
+      connectionString:
+        name: laplace-backup-storage
+        key: connectionString
+    wal:
+      compression: gzip
+    data:
+      compression: gzip

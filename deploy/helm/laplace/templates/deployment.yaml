@@ -56,6 +56,9 @@ spec:
             - name: {{ $name }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- if .Values.database.host }}
+            {{- include "laplace.database" (dict "root" . "name" "app" "role" .Values.database.app) | nindent 12 }}
+            {{- end }}
           envFrom:
             - secretRef:
                 name: {{ .Values.secrets.app }}

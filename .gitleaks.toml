@@ -9,4 +9,6 @@ paths = [
     '''web/node_modules/''',
     '''web/dist/''',
     '''demo/''',
+    # a made-up key that only opens the local storage emulator
+    '''deploy/test/cnpg-azurite.yaml''',
 ]

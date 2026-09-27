@@ -145,21 +145,63 @@ gateways, scripts ──► laplace replicas (stateless) ──► postgres: cur
 
 ## run in kubernetes
 
-`deploy/helm/laplace` is a helm chart. postgres is not part of it; use a managed one, e.g.
-azure database for postgresql flexible server, with two roles: an owner for migrations and an
-app role that can read and write tables but not change them (`deploy/test/postgres.yaml` shows
-the grants).
+`deploy/helm/laplace` is a helm chart. postgres is not part of it; laplace needs two roles,
+an owner for migrations and an app role that can read and write tables but not change them.
+
+### postgres in the cluster
+
+`deploy/postgres` runs it with [cloudnativepg](https://cloudnative-pg.io): a primary and a
+standby on different nodes, failover by the operator in seconds, the write-ahead log archived
+continuously and a full backup every night to azure storage, restorable to any moment in the
+last 30 days. once per cluster, install the operators:
+
+```
+kubectl apply --server-side -f https://github.com/cert-manager/cert-manager/releases/download/v1.21.2/cert-manager.yaml
+kubectl apply --server-side -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.30/releases/cnpg-1.30.1.yaml
+kubectl apply --server-side -f https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.0/manifest.yaml
+```
+
+then the database and laplace. the operator makes the owner's password (`laplace-db-app`); you
+make the app role's, and the chart reads both from their secrets:
+
+```
+kubectl create secret generic laplace-db-app-role --type=kubernetes.io/basic-auth \
+  --from-literal=username=laplace_app --from-literal=password="$(openssl rand -hex 24)"
+kubectl create secret generic laplace-backup-storage --from-literal=account=... --from-literal=key=...
+# fill in the storage account in backups.yaml first
+kubectl apply -f deploy/postgres/backups.yaml -f deploy/postgres/cluster.yaml
+kubectl create secret generic laplace --from-literal=LAPLACE_SESSION_KEY="$(openssl rand -hex 32)" ...
+helm install laplace deploy/helm/laplace --set-file flows=flows.toml \
+  --set database.host=laplace-db-rw \
+  --set database.app.passwordSecret=laplace-db-app-role \
+  --set database.migrations.passwordSecret=laplace-db-app \
+  --set publicUrl=https://laplace.company.se --set ingress.enabled=true --set ingress.host=laplace.company.se
+```
+
+to recover, `deploy/postgres/restore.yaml` builds a new cluster from the backups, optionally
+up to a point in time, next to the broken one; its comments say how to switch laplace over.
+this was tested end to end: a killed primary was replaced in 3 seconds while laplace kept
+answering, and a restore brought back every row, including ones written after the last
+nightly backup.
+
+### any other postgres
+
+a managed one (e.g. azure database for postgresql) or one a dba team runs works the same way;
+`deploy/test/postgres.yaml` shows the grants. either use `database.host` as above, or put
+full urls in the two secrets:
 
 ```
 kubectl create secret generic laplace --from-literal=DATABASE_URL=postgres://laplace_app:...@db/laplace ...
 kubectl create secret generic laplace-migrations --from-literal=DATABASE_URL=postgres://laplace_owner:...@db/laplace
-helm install laplace deploy/helm/laplace --set publicUrl=https://laplace.company.se   --set ingress.enabled=true --set ingress.host=laplace.company.se --set-file flows=flows.toml
+helm install laplace deploy/helm/laplace --set-file flows=flows.toml --set publicUrl=https://laplace.company.se
 ```
+
+### what the chart does
 
 - **migrations** run as a job before every install and upgrade (`laplace migrate`), with the
   owner's credentials; the pods run with `RUN_MIGRATIONS=false` and the app role.
 - **two replicas** spread over nodes, a disruption budget, rolling updates without dropped
-  requests. a changed `flows.toml` rolls the pods.
+  requests. a changed `flows.toml` is picked up by the running pods, no rollout needed.
 - **locked down**: non-root, read-only root filesystem, no capabilities, no kubernetes api token.
 - **probes and metrics** on the internal port 9090, never exposed through the ingress:
   `/healthz` (the scheduler is ticking), `/readyz` (postgres answers), `/metrics` for prometheus
@@ -181,7 +223,7 @@ the compose file includes a demo sftp server and demo landing folders.
 
 | variable | meaning |
 |---|---|
-| `DATABASE_URL` | postgres |
+| `DATABASE_URL` | postgres; or `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE` |
 | `LAPLACE_CONFIG` | path to `flows.toml` |
 | `LAPLACE_TOKEN` | a token jobs may send on `/ping` and `/calls`; tokens made in the settings page work too |
 | `LAPLACE_PUBLIC_URL` | the address jobs and browsers use to reach laplace; the connect panel puts it in every snippet |

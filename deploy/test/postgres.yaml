@@ -1,5 +1,5 @@
-# a throwaway postgres for testing the chart in a local cluster. production uses a managed
-# postgres. two roles, as SECURITY.md asks: the owner migrates, the app only reads and writes.
+# a throwaway postgres for testing the chart in a local cluster. production uses
+# deploy/postgres or a managed postgres. two roles, as SECURITY.md asks: the owner migrates, the app only reads and writes.
 apiVersion: v1
 kind: Secret
 metadata:

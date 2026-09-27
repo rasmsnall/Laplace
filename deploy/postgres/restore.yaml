@@ -1,0 +1,54 @@
+# a new cluster built from laplace-db's backups. restore next to the broken one, check it,
+# then point the chart at it: database.host laplace-db-restored-rw, and the migrations
+# password from laplace-db-restored-app, which the operator makes for the restored owner.
+# the app role keeps using laplace-db-app-role. once it runs, change the cluster in
+# backups.yaml's laplace-db-nightly to laplace-db-restored, so the nightly backups follow.
+#
+# to stop at a moment before something went wrong, add under recovery:
+#   recoveryTarget:
+#     targetTime: "2026-09-26 08:00:00+00"
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: laplace-db-restored
+spec:
+  instances: 2
+  storage:
+    size: 10Gi
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: preferred
+  # a primary going away drops its clients after 15s instead of waiting for them; laplace
+  # reconnects to the new primary on its own, so a failover takes seconds, not minutes
+  smartShutdownTimeout: 15
+  stopDelay: 120
+
+  bootstrap:
+    recovery:
+      source: laplace-db
+      database: laplace
+      owner: laplace_owner
+
+  managed:
+    roles:
+      - name: laplace_app
+        ensure: present
+        login: true
+        passwordSecret:
+          name: laplace-db-app-role
+
+  # the restored cluster is backed up too, under its own name in the same store
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: laplace-backups
+        serverName: laplace-db-restored
+
+  externalClusters:
+    - name: laplace-db
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: laplace-backups
+          serverName: laplace-db
