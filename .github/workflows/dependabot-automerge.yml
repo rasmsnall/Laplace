@@ -1,0 +1,29 @@
+name: dependabot auto-merge
+
+# pull_request_target runs this file as it is on main, with a token that may merge. it never
+# checks out or runs the pull request's code; it only asks github to merge once ci has passed.
+on: pull_request_target
+
+permissions: {}
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      # patch updates merge by themselves, and minor ones from 1.0 up. majors, and minors of
+      # 0.x packages (where a minor bump may break things), wait for a person
+      - if: >-
+          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          (steps.meta.outputs.update-type == 'version-update:semver-minor' &&
+           !startsWith(steps.meta.outputs.new-version, '0.'))
+        run: gh pr merge --auto --squash "$PR"
+        env:
+          PR: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
