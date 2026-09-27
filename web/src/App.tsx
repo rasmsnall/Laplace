@@ -229,7 +229,7 @@ export function App() {
 
   return (
     <div className="relative isolate min-h-screen">
-      <TickField marks={attention.map((f) => ({ id: f.id, failed: f.state === "failed" }))} />
+      {view === "overview" && <TickField marks={attention.map((f) => ({ id: f.id, failed: f.state === "failed" }))} />}
 
       <header className="sticky top-0 z-40 bg-ink-950 pt-3 pb-1">
         <div className="mx-auto max-w-6xl px-5 sm:px-10">

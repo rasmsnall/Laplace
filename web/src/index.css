@@ -92,7 +92,7 @@ body {
 }
 
 .field-mask {
-  mask-image: linear-gradient(to bottom, black 35%, transparent);
+  mask-image: linear-gradient(to bottom, black 20%, transparent 75%);
 }
 
 /* headline words slide up out of a clipped line, as deepbook's split text does */

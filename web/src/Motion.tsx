@@ -22,7 +22,7 @@ function cellOf(id: string, cells: number) {
 
 /**
  * deepbook's drifting field of ticks, behind the headline. each flow that needs attention
- * is one tick that pulses in gold, or red when it failed; the cursor lights up the ticks near it.
+ * is one tick that pulses in gold, or red when it failed; the ticks near the cursor fade away.
  */
 export function TickField({ marks }: { marks: FieldMark[] }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -65,8 +65,9 @@ export function TickField({ marks }: { marks: FieldMark[] }) {
           const near = Math.max(0, 1 - Math.hypot(pointer.x - x, pointer.y - y) / REACH);
           const mark = lit.get(row * columns + column);
 
-          let length = TICK * (0.5 + 0.5 * wave) + near * 12;
-          let alpha = 0.28 + 0.42 * wave + near * 0.6;
+          // the cursor clears a calm patch around itself, so text under it stays easy to read
+          let length = TICK * (0.5 + 0.5 * wave) * (1 - near * 0.6);
+          let alpha = (0.14 + 0.26 * wave) * (1 - near * 0.9);
           context.strokeStyle = colors.tick;
           if (mark) {
             const pulse = (Math.sin(time * 0.004 + column) + 1) / 2;
