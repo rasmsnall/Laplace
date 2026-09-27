@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # deltalake brings its own object_store; ours follows when deltalake moves, so there is one copy
+      - dependency-name: object_store
+        update-types: [version-update:semver-major, version-update:semver-minor]
     groups:
       rust:
         patterns: ["*"]

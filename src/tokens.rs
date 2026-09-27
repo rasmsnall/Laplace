@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
-use rand::RngCore;
+use rand::Rng;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
