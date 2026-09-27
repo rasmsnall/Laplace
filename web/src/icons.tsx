@@ -13,6 +13,7 @@ const iconPaths = {
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3",
   alert: "M12 3 2 20h20zM12 10v4M12 17h.01",
   chevron: "M6 9l6 6 6-6",
+  arrow: "M5 12h14M13 6l6 6-6 6",
   sort: "M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4",
   minus: "M5 12h14",
   transfer: "M4 8h15l-4-4M20 16H5l4 4",

@@ -60,7 +60,7 @@ export function Connect({ onClose }: { onClose: () => void }) {
       <aside className="relative flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-line bg-ink-950 p-6">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <h2 id="connect-title" className="wide text-lg font-semibold tracking-[0.2em] uppercase">
+            <h2 id="connect-title" className="display text-[22px]">
               connect a job
             </h2>
             <p className="mt-2 text-[13px] text-fog-500">one line in the job. the flow appears the first time it reports.</p>

@@ -1,89 +1,139 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: "Host Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
 
-  /* moto-like neutrals: warm near-black and a cool pale grey */
-  --color-ink-950: #0b0c07;
-  --color-ink-900: #10110c;
-  --color-ink-850: #151610;
-  --color-ink-800: #1b1c16;
-  --color-ink-700: #272822;
-  --color-ink-600: #383933;
+  /* deepbook-like: pure black, neutral greys, one saturated accent used as a fill */
+  --color-ink-950: #000000;
+  --color-ink-900: #0b0b0b;
+  --color-ink-850: #141414;
+  --color-ink-800: #1c1c1c;
+  --color-ink-700: #2a2a2a;
+  --color-ink-600: #3b3b3b;
 
-  --color-fog-100: #e1e5e5;
-  --color-fog-300: #b9bdbc;
-  --color-fog-500: #878b88;
-  --color-fog-700: #5a5d59;
+  --color-fog-100: #ffffff;
+  --color-fog-300: #c7c7c7;
+  --color-fog-500: #8c8c8c;
+  --color-fog-700: #5e5e5e;
 
-  --color-gold-300: #eed07a;
-  --color-gold-400: #e4bb4f;
-  --color-gold-500: #d4a537;
-  --color-gold-700: #7d5d1d;
+  --color-gold-300: #ffd873;
+  --color-gold-400: #ffc933;
+  --color-gold-500: #f5b400;
+  --color-gold-700: #7a5a00;
 
-  --color-line: rgb(225 229 229 / 0.07);
+  /* the late tile, like deepbook's grey-blue block */
+  --color-slate-500: #66707d;
+
+  --color-line: rgb(255 255 255 / 0.1);
 }
 
 :root {
   color-scheme: dark;
-  --grid: rgb(225 229 229 / 0.045);
-  --tick: rgb(225 229 229 / 0.35);
+  --dot: rgb(255 255 255 / 0.14);
+  /* plain colours for the canvas tick field */
+  --field-tick: #8c8c8c;
+  --field-gold: #f5b400;
+  --field-red: #f04438;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --grid: rgb(11 12 7 / 0.06);
-  --tick: rgb(11 12 7 / 0.35);
+  --dot: rgb(0 0 0 / 0.16);
+  --field-tick: #7a7a7a;
+  --field-gold: #d99e00;
+  --field-red: #c8261c;
 
-  --color-ink-950: #e6e9e9;
-  --color-ink-900: #dde1e1;
-  --color-ink-850: #d5dada;
-  --color-ink-800: #ccd1d1;
-  --color-ink-700: #b8bdbd;
-  --color-ink-600: #a3a8a8;
+  --color-ink-950: #ffffff;
+  --color-ink-900: #f5f5f5;
+  --color-ink-850: #ededed;
+  --color-ink-800: #e3e3e3;
+  --color-ink-700: #d2d2d2;
+  --color-ink-600: #bababa;
 
-  --color-fog-100: #0b0c07;
-  --color-fog-300: #30322c;
-  --color-fog-500: #5d605b;
-  --color-fog-700: #8b8f8a;
+  --color-fog-100: #000000;
+  --color-fog-300: #2b2b2b;
+  --color-fog-500: #686868;
+  --color-fog-700: #9a9a9a;
 
-  --color-gold-300: #7a5906;
-  --color-gold-400: #8c6508;
-  --color-gold-500: #b8860b;
+  /* gold stays a fill; text in gold turns darker so it reads on white */
+  --color-gold-300: #7a5a00;
+  --color-gold-400: #8a6500;
 
   --color-red-300: #a8201a;
   --color-red-400: #b91c1c;
 
-  --color-line: rgb(11 12 7 / 0.09);
+  --color-line: rgb(0 0 0 / 0.12);
 }
 
 body {
   @apply bg-ink-950 font-sans text-fog-100 antialiased;
+  font-weight: 450;
 }
 
-.wide {
-  font-stretch: 125%;
+/* headlines: one grotesque at medium weight, pulled slightly tight */
+.display {
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
-.grid-lines {
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: linear-gradient(to bottom, black, transparent);
+.dot-grid {
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.5px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black 30%, transparent);
 }
 
-/* corner ticks instead of a full border */
-.brackets {
-  background-image:
-    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
-    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
-    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
-    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick));
+/* small square markers on the right-hand corners, in the text colour */
+.corners {
+  background-image: linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor);
   background-repeat: no-repeat;
-  background-size: 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px;
-  background-position: top left, top left, top right, top right, bottom left, bottom left, bottom right, bottom right;
+  background-size: 5px 5px;
+  background-position: top 14px right 14px, bottom 14px right 14px;
+}
+
+.field-mask {
+  mask-image: linear-gradient(to bottom, black 20%, transparent 75%);
+}
+
+/* headline words slide up out of a clipped line, as deepbook's split text does */
+@keyframes rise {
+  from { transform: translateY(105%); }
+  to { transform: none; }
+}
+
+.rise {
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* a newly opened tab settles in */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease-out both;
+}
+
+/* sections ease into place the first time they scroll into view */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* dashes running along a pipeline link whose upstream step is healthy */
+@keyframes dash {
+  to { stroke-dashoffset: -16; }
+}
+
+.flow-dash {
+  animation: dash 0.9s linear infinite;
 }
 
 @keyframes refresh {
@@ -105,6 +155,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .refresh-bar, .live-dot { animation: none; }
+  .refresh-bar, .live-dot, .rise, .flow-dash, .fade-in { animation: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
   .refresh-bar { width: 100%; }
 }

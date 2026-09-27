@@ -104,7 +104,14 @@ async fn get_report(
     let (from, to) = month_bounds(app.settings().timezone, period.month.as_deref())
         .ok_or_else(|| ApiError(StatusCode::BAD_REQUEST, "month: expected yyyy-mm".into()))?;
     Ok(Json(
-        reports::build(&app.pool, &app.flows().await?, from, to).await?,
+        reports::build(
+            &app.pool,
+            &app.flows().await?,
+            from,
+            to,
+            app.settings().timezone,
+        )
+        .await?,
     ))
 }
 

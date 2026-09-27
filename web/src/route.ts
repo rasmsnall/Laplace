@@ -10,6 +10,8 @@ export interface Route {
   at: string | null;
   action: Action | null;
   month: string | null;
+  /** which settings tab is open */
+  tab: string | null;
 }
 
 function read(): Route {
@@ -21,6 +23,7 @@ function read(): Route {
     at: params.get("at"),
     action: action === "acknowledge" || action === "silence" ? action : null,
     month: params.get("month"),
+    tab: params.get("tab"),
   };
 }
 
