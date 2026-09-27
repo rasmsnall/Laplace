@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { CopyLink } from "./CopyLink";
+import { go } from "./route";
 
 type Role = "viewer" | "operator" | "editor" | "admin";
 
@@ -59,9 +60,14 @@ const ROLE_HELP: Record<Role, string> = {
 };
 const LOCALE = "en-GB";
 
-/** the sections the rail on the left jumps between, in page order */
-const SECTIONS = ["people", "groups", "job tokens", "roles", "general", "from git", "audit log"];
-const sectionId = (title: string) => `settings-${title.replace(/ /g, "-")}`;
+const TABS = [
+  { id: "access", label: "access" },
+  { id: "tokens", label: "job tokens" },
+  { id: "general", label: "general" },
+  { id: "git", label: "from git" },
+  { id: "audit", label: "audit log" },
+] as const;
+type Tab = (typeof TABS)[number]["id"];
 const date = (iso: string | null) => (iso ? new Date(iso).toLocaleString(LOCALE) : "never");
 
 async function send(url: string, method: string, body?: unknown) {
@@ -76,7 +82,9 @@ async function send(url: string, method: string, body?: unknown) {
   return data;
 }
 
-export function Settings() {
+/** the tab lives in the link, like the reports month */
+export function Settings({ tab: linked }: { tab: string | null }) {
+  const tab: Tab = TABS.find((t) => t.id === linked)?.id ?? "access";
   const [overview, setOverview] = useState<Overview | null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -119,199 +127,210 @@ export function Settings() {
     ? audit.filter((entry) => [entry.by, entry.action, entry.detail].some((field) => field.toLowerCase().includes(needle)))
     : audit;
 
+  const activeTokens = overview.tokens.filter((token) => !token.revoked_at).length;
+  const openWindow = overview.maintenance.some((window) => window.open_until);
+  const badges: Record<Tab, ReactNode> = {
+    access: overview.admins.length + overview.members.length + overview.groups.length,
+    tokens: activeTokens,
+    general: null,
+    git: overview.config_error ? <span className="size-1.5 bg-red-500" title="flows.toml has an error" /> : openWindow ? <span className="live-dot size-1.5 bg-gold-500" title="a maintenance window is open" /> : null,
+    audit: audit.length,
+  };
+
   return (
     <section className="pt-12 lg:grid lg:grid-cols-[168px_1fr] lg:gap-10">
-      <SectionRail />
+      <SettingsTabs current={tab} badges={badges} />
       <div className="min-w-0">
-      <h2 className="display mb-8 text-[32px] leading-tight">Settings</h2>
+        <h2 className="display mb-8 text-[32px] leading-tight">Settings</h2>
 
-      {!overview.sso && (
-        <p className="mb-8 border-l-2 border-gold-500 pl-3 text-[13px] text-gold-300">
-          sign-in is off, so everyone who can reach laplace is an admin. set LAPLACE_OIDC_ISSUER to use the access rules below.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="mb-8 border-l-2 border-red-500 pl-3 font-mono text-[13px] text-red-300">
-          {error}
-        </p>
-      )}
+        {!overview.sso && (
+          <p className="mb-8 border-l-2 border-gold-500 pl-3 text-[13px] text-gold-300">
+            sign-in is off, so everyone who can reach laplace is an admin. set LAPLACE_OIDC_ISSUER to use the access rules below.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="mb-8 border-l-2 border-red-500 pl-3 font-mono text-[13px] text-red-300">
+            {error}
+          </p>
+        )}
 
-      <div className="grid gap-12 lg:grid-cols-12">
-        <div className="space-y-12 lg:col-span-7">
-          <Section title="people" hint="a person's role is the highest one they get from here, their groups or LAPLACE_ADMINS">
-            <GrantList
-              grants={[
-                ...overview.admins.map((email) => ({ name: email, role: "admin" as Role, added_by: "LAPLACE_ADMINS", added_at: "" })),
-                ...overview.members,
-              ]}
-              fixed={(g) => g.added_by === "LAPLACE_ADMINS"}
-              you={overview.you}
-              onRole={(g, role) => change("api/settings/members", "POST", { name: g.name, role }, `${g.name} is now ${role}`)}
-              onRemove={(g) => change(`api/settings/members/${encodeURIComponent(g.name)}`, "DELETE", undefined, `${g.name} removed`)}
-            />
-            <AddGrant placeholder="name@company.se" label="email" onAdd={(name, role) => change("api/settings/members", "POST", { name, role }, `${name} added as ${role}`)} />
-          </Section>
+        <div key={tab} id="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${tab}`} className="fade-in">
+          {tab === "access" && (
+            <div className="grid gap-12 lg:grid-cols-12">
+              <div className="space-y-12 lg:col-span-8">
+                <Section title="people" hint="a person's role is the highest one they get from here, their groups or LAPLACE_ADMINS">
+                  <GrantList
+                    grants={[
+                      ...overview.admins.map((email) => ({ name: email, role: "admin" as Role, added_by: "LAPLACE_ADMINS", added_at: "" })),
+                      ...overview.members,
+                    ]}
+                    fixed={(g) => g.added_by === "LAPLACE_ADMINS"}
+                    you={overview.you}
+                    onRole={(g, role) => change("api/settings/members", "POST", { name: g.name, role }, `${g.name} is now ${role}`)}
+                    onRemove={(g) => change(`api/settings/members/${encodeURIComponent(g.name)}`, "DELETE", undefined, `${g.name} removed`)}
+                  />
+                  <AddGrant placeholder="name@company.se" label="email" onAdd={(name, role) => change("api/settings/members", "POST", { name, role }, `${name} added as ${role}`)} />
+                </Section>
 
-          <Section title="groups" hint="everyone in an sso group gets its role. entra id sends group object ids unless the app is set to send names">
-            <GrantList
-              grants={overview.groups}
-              fixed={() => false}
-              onRole={(g, role) => change("api/settings/groups", "POST", { name: g.name, role }, `${g.name} is now ${role}`)}
-              onRemove={(g) => change(`api/settings/groups/${encodeURIComponent(g.name)}`, "DELETE", undefined, `${g.name} removed`)}
-            />
-            <AddGrant placeholder="sg-it-operations or an object id" label="group" onAdd={(name, role) => change("api/settings/groups", "POST", { name, role }, `${name} added as ${role}`)} />
-          </Section>
+                <Section title="groups" hint="everyone in an sso group gets its role. entra id sends group object ids unless the app is set to send names">
+                  <GrantList
+                    grants={overview.groups}
+                    fixed={() => false}
+                    onRole={(g, role) => change("api/settings/groups", "POST", { name: g.name, role }, `${g.name} is now ${role}`)}
+                    onRemove={(g) => change(`api/settings/groups/${encodeURIComponent(g.name)}`, "DELETE", undefined, `${g.name} removed`)}
+                  />
+                  <AddGrant placeholder="sg-it-operations or an object id" label="group" onAdd={(name, role) => change("api/settings/groups", "POST", { name, role }, `${name} added as ${role}`)} />
+                </Section>
+              </div>
 
-          <Section title="job tokens" hint="jobs send one on /ping and /calls. from the first token on, reporting always needs one, even if every token is revoked">
-            <Tokens tokens={overview.tokens} legacy={overview.legacy_token} change={change} />
-          </Section>
-        </div>
+              <Section title="roles" className="lg:col-span-4">
+                <dl className="space-y-3 text-[13px]">
+                  {ROLES.map((role) => (
+                    <div key={role}>
+                      <dt className="font-mono text-fog-100">{role}</dt>
+                      <dd className="text-fog-500">{ROLE_HELP[role]}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </Section>
+            </div>
+          )}
 
-        <div className="space-y-12 lg:col-span-5">
-          <Section title="roles">
-            <dl className="space-y-2 text-[13px]">
-              {ROLES.map((role) => (
-                <div key={role} className="grid grid-cols-[80px_1fr] gap-3">
-                  <dt className="font-mono text-fog-100">{role}</dt>
-                  <dd className="text-fog-500">{ROLE_HELP[role]}</dd>
-                </div>
-              ))}
-            </dl>
-          </Section>
+          {tab === "tokens" && (
+            <Section title="job tokens" hint="jobs send one on /ping and /calls. from the first token on, reporting always needs one, even if every token is revoked" className="max-w-3xl">
+              <Tokens tokens={overview.tokens} legacy={overview.legacy_token} change={change} />
+            </Section>
+          )}
 
-          <Section title="general">
-            <GeneralForm general={overview.general} defaults={overview.defaults} onSave={(values) => change("api/settings/general", "PUT", values)} />
-          </Section>
+          {tab === "general" && (
+            <Section title="general" className="max-w-md">
+              <GeneralForm general={overview.general} defaults={overview.defaults} onSave={(values) => change("api/settings/general", "PUT", values)} />
+            </Section>
+          )}
 
-          <Section title="from git" hint="flows.toml is reviewed in git, so these are read-only here">
-            <ul className="divide-y divide-line rounded-md border border-line text-[13px]">
-              {overview.owners.map((owner) => (
-                <li key={owner.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <span className="text-fog-100">{owner.id}</span>
-                  <span className="flex flex-wrap justify-end gap-x-3 font-mono text-[11px]">
-                    {owner.email.length > 0 && (
-                      <span className={overview.email_ready ? "text-fog-500" : "text-gold-300"} title={overview.email_ready ? undefined : "LAPLACE_SMTP_URL is not set"}>
-                        {owner.email.join(", ")}
-                      </span>
-                    )}
-                    <span className={owner.webhook_set ? "text-fog-500" : "text-gold-300"}>
-                      {owner.webhook_env ? `${owner.webhook_env} ${owner.webhook_set ? "set" : "not set"}` : "shared webhook"}
-                    </span>
-                  </span>
-                </li>
-              ))}
-              {overview.maintenance.map((window) => (
-                <li key={window.name} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <span className="text-fog-100">
-                    {window.name} <span className="text-fog-500">· maintenance</span>
-                  </span>
-                  <span className="flex flex-wrap items-center justify-end gap-x-2 font-mono text-[11px] text-fog-500">
-                    <Countdown openUntil={window.open_until} nextOpen={window.next_open} lasts={window.lasts} />
-                    <span title={`${window.cron} for ${window.lasts}`}>{window.flows.join(", ")}</span>
-                  </span>
-                </li>
-              ))}
-              <li className="px-3 py-2 text-fog-500">{overview.config_flows.length} flows defined in flows.toml</li>
-            </ul>
-            {overview.config_error && (
-              <p className="mt-3 border-l-2 border-red-500 pl-3 font-mono text-[12px] whitespace-pre-wrap text-red-300">{overview.config_error}</p>
-            )}
-          </Section>
-        </div>
-      </div>
-
-      <Section title="audit log" hint="the last 200 changes and actions" className="mt-12">
-        <label className="relative mb-2 block">
-          <span className="sr-only">search the audit log</span>
-          <input
-            value={auditQuery}
-            onChange={(e) => setAuditQuery(e.target.value)}
-            placeholder="search by person, action or detail"
-            className="h-8 w-full rounded-[4px] border border-line bg-ink-900 px-2.5 text-[13px] text-fog-100 outline-none placeholder:text-fog-700 focus-visible:border-gold-500 sm:w-80"
-          />
-        </label>
-        <div className="max-h-96 overflow-y-auto rounded-md border border-line">
-          <table className="w-full text-left text-[13px]">
-            <tbody className="divide-y divide-line">
-              {shownAudit.length === 0 && (
-                <tr>
-                  <td className="px-3 py-3 text-fog-500">{needle ? "nothing matches" : "nothing yet"}</td>
-                </tr>
+          {tab === "git" && (
+            <Section title="from git" hint="flows.toml is reviewed in git, so these are read-only here" className="max-w-3xl">
+              {overview.config_error && (
+                <p className="mb-3 border-l-2 border-red-500 pl-3 font-mono text-[12px] whitespace-pre-wrap text-red-300">{overview.config_error}</p>
               )}
-              {shownAudit.map((entry, i) => (
-                <tr key={i}>
-                  <td className="w-44 px-3 py-2 font-mono text-[12px] whitespace-nowrap text-fog-500">{date(entry.at)}</td>
-                  <td className="w-56 truncate px-3 py-2 text-fog-300">{entry.by}</td>
-                  <td className="px-3 py-2 text-fog-100">
-                    {entry.action} <span className="text-fog-500">{entry.detail}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <h4 className="mt-2 mb-2 text-[13px] text-fog-500">owners</h4>
+              <ul className="divide-y divide-line rounded-md border border-line text-[13px]">
+                {overview.owners.map((owner) => (
+                  <li key={owner.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-fog-100">{owner.id}</span>
+                    <span className="flex flex-wrap justify-end gap-x-3 font-mono text-[11px]">
+                      {owner.email.length > 0 && (
+                        <span className={overview.email_ready ? "text-fog-500" : "text-gold-300"} title={overview.email_ready ? undefined : "no mail server is set"}>
+                          {owner.email.join(", ")}
+                        </span>
+                      )}
+                      <span className={owner.webhook_set ? "text-fog-500" : "text-gold-300"}>
+                        {owner.webhook_env ? `${owner.webhook_env} ${owner.webhook_set ? "set" : "not set"}` : "shared webhook"}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <h4 className="mt-8 mb-2 text-[13px] text-fog-500">maintenance windows</h4>
+              <ul className="divide-y divide-line rounded-md border border-line text-[13px]">
+                {overview.maintenance.length === 0 && <li className="px-3 py-2.5 text-fog-500">none</li>}
+                {overview.maintenance.map((window) => (
+                  <li key={window.name} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-fog-100">{window.name}</span>
+                    <span className="flex flex-wrap items-center justify-end gap-x-3 font-mono text-[11px] text-fog-500">
+                      <Countdown openUntil={window.open_until} nextOpen={window.next_open} lasts={window.lasts} />
+                      <span title={`${window.cron} for ${window.lasts}`}>{window.flows.join(", ")}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-[13px] text-fog-500">{overview.config_flows.length} flows defined in flows.toml</p>
+            </Section>
+          )}
+
+          {tab === "audit" && (
+            <Section title="audit log" hint="the last 200 changes and actions">
+              <label className="relative mb-2 block">
+                <span className="sr-only">search the audit log</span>
+                <input
+                  value={auditQuery}
+                  onChange={(e) => setAuditQuery(e.target.value)}
+                  placeholder="search by person, action or detail"
+                  className="h-8 w-full rounded-[4px] border border-line bg-ink-900 px-2.5 text-[13px] text-fog-100 outline-none placeholder:text-fog-700 focus-visible:border-gold-500 sm:w-80"
+                />
+              </label>
+              <div className="max-h-[60vh] overflow-y-auto rounded-md border border-line">
+                <table className="w-full text-left text-[13px]">
+                  <tbody className="divide-y divide-line">
+                    {shownAudit.length === 0 && (
+                      <tr>
+                        <td className="px-3 py-3 text-fog-500">{needle ? "nothing matches" : "nothing yet"}</td>
+                      </tr>
+                    )}
+                    {shownAudit.map((entry, i) => (
+                      <tr key={i}>
+                        <td className="w-44 px-3 py-2 font-mono text-[12px] whitespace-nowrap text-fog-500">{date(entry.at)}</td>
+                        <td className="w-56 truncate px-3 py-2 text-fog-300">{entry.by}</td>
+                        <td className="px-3 py-2 text-fog-100">
+                          {entry.action} <span className="text-fog-500">{entry.detail}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
+          )}
         </div>
-      </Section>
       </div>
       {toast && <Toast key={toast.at} text={toast.text} />}
     </section>
   );
 }
 
-/** follows the scroll: the section in view is marked, and a click jumps to one */
-function SectionRail() {
-  const [current, setCurrent] = useState(SECTIONS[0]);
-  /** a clicked section stays marked while the jump scrolls, even if the page bottoms out first */
-  const pinned = useRef(0);
+/** the tab list: a rail on wide screens, a row on narrow ones. arrow keys move between tabs */
+function SettingsTabs({ current, badges }: { current: Tab; badges: Record<Tab, ReactNode> }) {
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const index = TABS.findIndex((t) => t.id === current);
+  const open = (i: number) => go({ settings: "", tab: TABS[i].id });
 
-  // of the sections whose top has passed under the bar, the one closest to it (the page has
-  // two columns, so list order is not reading order); at the very bottom, the last one
+  // on a narrow screen the row scrolls sideways; keep the open tab in sight
   useEffect(() => {
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      if (Date.now() < pinned.current) return;
-      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
-      const passed = SECTIONS.map((title) => ({ title, top: document.getElementById(sectionId(title))?.getBoundingClientRect().top ?? Infinity }))
-        .filter((section) => section.top <= 140)
-        .sort((a, b) => b.top - a.top);
-      setCurrent(atBottom ? SECTIONS[SECTIONS.length - 1] : (passed[0]?.title ?? SECTIONS[0]));
-    };
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(update);
-    };
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(frame);
-    };
-  }, []);
+    buttons.current[index]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [index]);
 
-  const jump = (title: string) => {
-    pinned.current = Date.now() + 1000;
-    setCurrent(title);
-    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    document.getElementById(sectionId(title))?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+  const step = (event: KeyboardEvent) => {
+    const by = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+    if (!by) return;
+    event.preventDefault();
+    const next = (index + by + TABS.length) % TABS.length;
+    open(next);
+    buttons.current[next]?.focus();
   };
 
   return (
-    <nav aria-label="settings sections" className="hidden lg:block">
-      <ul className="sticky top-24 space-y-0.5 border-l border-line text-[13px]">
-        {SECTIONS.map((title) => (
-          <li key={title}>
-            <button
-              onClick={() => jump(title)}
-              aria-current={current === title ? "location" : undefined}
-              className={`relative -ml-px block w-full border-l py-1.5 pl-4 text-left transition ${
-                current === title ? "border-gold-500 text-fog-100" : "border-transparent text-fog-500 hover:text-fog-100"
-              }`}
-            >
-              {title}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </nav>
+    <div role="tablist" aria-label="settings" aria-orientation="vertical" onKeyDown={step} className="mb-8 flex gap-1 overflow-x-auto border-b border-line lg:sticky lg:top-24 lg:mb-0 lg:flex-col lg:gap-0 lg:self-start lg:border-b-0 lg:border-l">
+      {TABS.map((t, i) => (
+        <button
+          key={t.id}
+          ref={(button) => {
+            buttons.current[i] = button;
+          }}
+          id={`settings-tab-${t.id}`}
+          role="tab"
+          aria-selected={t.id === current}
+          aria-controls="settings-panel"
+          tabIndex={t.id === current ? 0 : -1}
+          onClick={() => open(i)}
+          className={`-mb-px flex shrink-0 items-center justify-between gap-3 border-b-2 px-3 py-2 text-left text-[14px] whitespace-nowrap transition lg:-ml-px lg:mb-0 lg:border-b-0 lg:border-l-2 lg:pl-4 ${
+            t.id === current ? "border-gold-500 text-fog-100" : "border-transparent text-fog-500 hover:text-fog-100"
+          }`}
+        >
+          {t.label}
+          {badges[t.id] !== null && <span className="flex items-center font-mono text-[11px] text-fog-700">{badges[t.id]}</span>}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -353,7 +372,7 @@ function Countdown({ openUntil, nextOpen, lasts }: { openUntil: string | null; n
 
 function Section({ title, hint, className = "", children }: { title: string; hint?: string; className?: string; children: ReactNode }) {
   return (
-    <section id={sectionId(title)} data-section={title} className={`scroll-mt-24 ${className}`}>
+    <section className={className}>
       <h3 className="text-[14px] font-medium text-fog-300">{title}</h3>
       {hint && <p className="mt-1 mb-3 text-[12px] text-fog-700">{hint}</p>}
       <div className={hint ? "" : "mt-3"}>{children}</div>

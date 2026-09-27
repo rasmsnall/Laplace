@@ -283,7 +283,7 @@ export function App() {
         {view === "reports" ? (
           <Reports month={route.month} />
         ) : view === "settings" && may("admin") ? (
-          <Settings />
+          <Settings tab={route.tab} />
         ) : (
         <>
         {error && <p className="mt-8 border-l-2 border-red-500 pl-3 font-mono text-sm text-red-300">{error}</p>}

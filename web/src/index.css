@@ -105,6 +105,16 @@ body {
   animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
+/* a newly opened tab settles in */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease-out both;
+}
+
 /* sections ease into place the first time they scroll into view */
 .reveal {
   opacity: 0;
@@ -145,7 +155,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .refresh-bar, .live-dot, .rise, .flow-dash { animation: none; }
+  .refresh-bar, .live-dot, .rise, .flow-dash, .fade-in { animation: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .refresh-bar { width: 100%; }
 }
