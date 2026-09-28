@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use futures::TryStreamExt;
 use object_store::azure::MicrosoftAzureBuilder;
 use object_store::gcp::GoogleCloudStorageBuilder;
@@ -11,10 +12,14 @@ use object_store::{ObjectStore, ObjectStoreScheme};
 use url::Url;
 
 use super::Report;
-use super::files::{self, RemoteFile};
+use super::files::{self, Observation, RemoteFile};
 use crate::config::Storage;
 
-pub async fn check(config: &Storage, since: Option<DateTime<Utc>>) -> Result<Report> {
+pub async fn check(
+    config: &Storage,
+    previous: &HashMap<String, Observation>,
+    baseline: bool,
+) -> Result<Report> {
     let (store, prefix) = open(&config.url)?;
     let objects: Vec<_> = store.list(Some(&prefix)).try_collect().await?;
 
@@ -22,6 +27,7 @@ pub async fn check(config: &Storage, since: Option<DateTime<Utc>>) -> Result<Rep
         .into_iter()
         .filter_map(|object| {
             Some(RemoteFile {
+                key: object.location.to_string(),
                 name: object.location.filename()?.to_owned(),
                 size: object.size,
                 modified: object.last_modified,
@@ -29,7 +35,7 @@ pub async fn check(config: &Storage, since: Option<DateTime<Utc>>) -> Result<Rep
         })
         .collect();
 
-    files::evaluate(&config.files, remote_files, since)
+    files::evaluate(&config.files, remote_files, previous, baseline, Utc::now())
 }
 
 /// credentials come from the environment, the same variables the azure and gcp sdks use

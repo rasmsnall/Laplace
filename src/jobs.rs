@@ -102,9 +102,12 @@ async fn run_job(app: &App, name: &str) -> Result<()> {
             let Some(flow) = app.flow(&flow_id).await? else {
                 return Ok(());
             };
+            let (files, files_observed) = db::file_observations(&app.pool, &flow.id).await?;
             let known = checks::Known {
                 last_ok: db::last_ok(&app.pool, &flow.id).await?,
                 host_key: db::trusted_host_key(&app.pool, &flow.id).await?,
+                files,
+                files_observed,
             };
             let report = checks::run(&flow, known, &app.client).await;
             db::apply_report(&app.pool, &flow.id, &report).await?;

@@ -8,6 +8,7 @@ use sqlx::PgPool;
 
 use crate::anomaly::Metrics;
 use crate::checks::Report;
+use crate::checks::files::Observation;
 use sqlx::types::Json;
 
 #[derive(Clone, Copy)]
@@ -230,6 +231,10 @@ pub async fn apply_report(pool: &PgPool, flow: &str, report: &Report) -> Result<
         .await?;
     }
 
+    if let Some(files) = &report.files {
+        remember_files(&mut tx, flow, files).await?;
+    }
+
     let previous: Option<String> =
         sqlx::query_scalar("select problem from flow_state where flow = $1 for update")
             .bind(flow)
@@ -254,6 +259,77 @@ pub async fn apply_report(pool: &PgPool, flow: &str, report: &Report) -> Result<
 
     tx.commit().await?;
     Ok(())
+}
+
+/// replaces what the last poll saw with what this one saw
+async fn remember_files(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    flow: &str,
+    files: &[Observation],
+) -> Result<()> {
+    sqlx::query("delete from file_observations where flow = $1")
+        .bind(flow)
+        .execute(&mut **tx)
+        .await?;
+    sqlx::query(
+        "insert into file_observations (flow, key, size, modified, first_seen, counted)
+         select $1, * from unnest($2::text[], $3::bigint[], $4::timestamptz[], $5::timestamptz[], $6::bool[])",
+    )
+    .bind(flow)
+    .bind(files.iter().map(|f| f.key.clone()).collect::<Vec<_>>())
+    .bind(files.iter().map(|f| f.size as i64).collect::<Vec<_>>())
+    .bind(files.iter().map(|f| f.modified).collect::<Vec<_>>())
+    .bind(files.iter().map(|f| f.first_seen).collect::<Vec<_>>())
+    .bind(files.iter().map(|f| f.counted).collect::<Vec<_>>())
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query("update flow_state set files_observed_at = coalesce(files_observed_at, now()) where flow = $1")
+        .bind(flow)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+#[derive(sqlx::FromRow)]
+struct ObservationRow {
+    key: String,
+    size: i64,
+    modified: DateTime<Utc>,
+    first_seen: DateTime<Utc>,
+    counted: bool,
+}
+
+/// the files the last poll saw, and whether any poll has remembered files for this flow yet
+pub async fn file_observations(
+    pool: &PgPool,
+    flow: &str,
+) -> Result<(HashMap<String, Observation>, bool)> {
+    let rows: Vec<ObservationRow> = sqlx::query_as(
+        "select key, size, modified, first_seen, counted from file_observations where flow = $1",
+    )
+    .bind(flow)
+    .fetch_all(pool)
+    .await?;
+    let observed: Option<DateTime<Utc>> =
+        sqlx::query_scalar("select files_observed_at from flow_state where flow = $1")
+            .bind(flow)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
+    let files = rows
+        .into_iter()
+        .map(|row| {
+            let seen = Observation {
+                key: row.key.clone(),
+                size: row.size as u64,
+                modified: row.modified,
+                first_seen: row.first_seen,
+                counted: row.counted,
+            };
+            (row.key, seen)
+        })
+        .collect();
+    Ok((files, observed.is_some()))
 }
 
 pub async fn add_calls(

@@ -104,7 +104,7 @@ change without a restart (see `architecture.md`, Chapter IV, Section 4).
 | `heartbeat` | `max_runtime` (optional) | A `/ping` with exit code 0. A run still going after `max_runtime` fails |
 | `inbound` | `max_error_rate` (default `0.05`) | Calls arriving. Fails above the server error rate in the last hour, once at least 10 calls arrived |
 | `http` | `url`, `timeout` (`10s`), `max_latency` | A 2xx answer within the limits. A certificate expiring within 14 days is a warning |
-| `sftp` | `host`, `port` (`22`), `user`, `password_env` or `key_file`, `host_key`, `dir`, `pattern` (`*`), `pickup`, `poll` (`5m`) | A new, non-empty matching file. A file older than `pickup` has not been collected |
+| `sftp` | `host`, `port` (`22`), `user`, `password_env` or `key_file`, `host_key`, `dir`, `pattern` (`*`), `pickup`, `poll` (`5m`) | A new, non-empty matching file, once unchanged on two polls. A file still there `pickup` after it appeared has not been collected |
 | `storage` | `url` (`gs://`, `abfss://` or a local path), `pattern`, `pickup`, `poll` (`5m`) | As for `sftp` |
 | `delta` | `url` (one table or a folder of tables), `poll` (`15m`) | A new commit. Reports `rows`, `files`, `bytes` and `tables` |
 | `databricks` | `job_id`, `poll` (`5m`) | A successful run of the job |
