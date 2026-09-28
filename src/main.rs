@@ -4,6 +4,7 @@ mod anomaly;
 mod api;
 mod checks;
 mod config;
+mod costs;
 mod databricks;
 mod db;
 mod export;

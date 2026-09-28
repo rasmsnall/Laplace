@@ -5,12 +5,14 @@ use std::time::Duration;
 use anyhow::Result;
 use chrono::{TimeDelta, Utc};
 
-use crate::{App, alerts, anomaly, checks, db, export, ops};
+use crate::{App, alerts, anomaly, checks, costs, db, export, ops};
 
 const ALERTS_EVERY: Duration = Duration::from_secs(30);
 const HEARTBEAT_EVERY: Duration = Duration::from_secs(60);
 const EXPORT_EVERY: Duration = Duration::from_secs(300);
 const PRUNE_EVERY: Duration = Duration::from_secs(3600);
+/// billing usage arrives within about 12 hours, so hourly is plenty
+const COSTS_EVERY: Duration = Duration::from_secs(3600);
 const TICK: Duration = Duration::from_secs(2);
 
 enum Job {
@@ -19,6 +21,7 @@ enum Job {
     Heartbeat,
     Export,
     Prune,
+    Costs,
 }
 
 impl Job {
@@ -28,6 +31,7 @@ impl Job {
             "heartbeat" => Some(Job::Heartbeat),
             "export" => Some(Job::Export),
             "prune" => Some(Job::Prune),
+            "costs" => Some(Job::Costs),
             _ => name
                 .strip_prefix("check:")
                 .map(|flow| Job::Check(flow.to_owned())),
@@ -47,6 +51,9 @@ pub async fn intervals(app: &App) -> Result<HashMap<String, Duration>> {
     intervals.insert("prune".into(), PRUNE_EVERY);
     if app.delta_uri.is_some() {
         intervals.insert("export".into(), EXPORT_EVERY);
+    }
+    if costs::settings().is_some() {
+        intervals.insert("costs".into(), COSTS_EVERY);
     }
     if app.heartbeat_url.is_some() {
         intervals.insert("heartbeat".into(), HEARTBEAT_EVERY);
@@ -133,6 +140,7 @@ async fn run_job(app: &App, name: &str) -> Result<()> {
             )
             .await
         }
+        Some(Job::Costs) => costs::refresh(app).await,
         None => Ok(()),
     }
 }

@@ -5,6 +5,7 @@ import { FlowActions, type Acknowledged } from "./FlowActions";
 import { CopyLink } from "./CopyLink";
 import { Reveal, RiseWords, TickField } from "./Motion";
 import { Tile } from "./Tile";
+import { money } from "./format";
 import { go, shareLink, useRoute, type View } from "./route";
 import { Pipelines } from "./Pipelines";
 import { Reports } from "./Reports";
@@ -24,6 +25,8 @@ interface Flow {
   detail: string;
   last_ok: string | null;
   host_key_pending: boolean;
+  /** databricks cost at list price, when cost tracking is on */
+  cost: { yesterday: number; last_30_days: number; currency: string } | null;
   after: string[];
   owner: string | null;
   acknowledged: Acknowledged | null;
@@ -568,6 +571,13 @@ export function App() {
                             {flow.host_key_pending && may("operator") && <TrustHostKey flow={flow.id} />}
                             <div className="mb-3 flex items-center gap-3 text-[13px]" onClick={(e) => e.stopPropagation()}>
                               <CopyLink link={shareLink({ flow: flow.id })} />
+                              {flow.cost && (
+                                <span className="text-fog-500">
+                                  databricks cost{" "}
+                                  <span className="text-fog-100 tabular-nums">{money(flow.cost.yesterday, flow.cost.currency)}</span> yesterday,{" "}
+                                  <span className="text-fog-100 tabular-nums">{money(flow.cost.last_30_days, flow.cost.currency)}</span> last 30 days, at list price
+                                </span>
+                              )}
                               {route.action && !may("operator") && (
                                 <span className="text-fog-500">the alert asked to {route.action}; that needs operator rights</span>
                               )}

@@ -404,6 +404,7 @@ mod tests {
             detail: "no file & no reply".into(),
             last_ok: None,
             host_key_pending: false,
+            cost: None,
             alerted_state: "ok".into(),
             recorded_state: None,
         }

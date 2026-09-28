@@ -36,6 +36,7 @@ pub struct FlowState {
     pub problem: Option<String>,
     pub check_warning: Option<String>,
     pub anomaly: Option<String>,
+    pub cost_warning: Option<String>,
     pub ack_note: Option<String>,
     pub ack_by: Option<String>,
     pub ack_at: Option<DateTime<Utc>>,
@@ -330,6 +331,40 @@ pub async fn file_observations(
         })
         .collect();
     Ok((files, observed.is_some()))
+}
+
+/// what each databricks job cost yesterday and over the last 30 days
+#[derive(serde::Serialize, Clone)]
+pub struct CostSummary {
+    pub yesterday: f64,
+    pub last_30_days: f64,
+    pub currency: String,
+}
+
+pub async fn job_cost_summaries(pool: &PgPool) -> Result<HashMap<i64, CostSummary>> {
+    let rows: Vec<(i64, f64, f64, String)> = sqlx::query_as(
+        "select job_id,
+                coalesce(sum(cost) filter (where day = current_date - 1), 0),
+                sum(cost),
+                max(currency)
+         from job_costs where day >= current_date - 30 and day < current_date
+         group by job_id",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(job_id, yesterday, last_30_days, currency)| {
+            (
+                job_id,
+                CostSummary {
+                    yesterday,
+                    last_30_days,
+                    currency,
+                },
+            )
+        })
+        .collect())
 }
 
 pub async fn add_calls(
