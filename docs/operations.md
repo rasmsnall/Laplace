@@ -281,8 +281,8 @@ outside the cluster laplace runs in.
 
 When the primary fails, the operator promotes the standby. Measured on a test cluster, the
 new primary took over three seconds after the old one was killed, and one of 90 job reports
-sent during the switch failed. laplace reconnects by itself. Jobs should retry a failed report
-once or twice.
+sent during the switch failed. laplace reconnects by itself. `scripts/heartbeat.ps1` tries each
+report three times, two seconds apart; other jobs should retry a failed report the same way.
 
 ### 2. Restoring the database
 

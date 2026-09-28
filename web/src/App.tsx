@@ -179,13 +179,7 @@ export function App() {
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = pane;
-    const move = (e: PointerEvent) => setPane(paneWidth(startWidth + startX - e.clientX));
-    const stop = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", stop);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", stop);
+    follow(event, (e) => setPane(paneWidth(startWidth + startX - e.clientX)));
   };
 
   const toggleTimeline = () => {
@@ -472,7 +466,14 @@ export function App() {
                             <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] border border-ink-600 bg-ink-800 text-fog-300">
                               <Icon name={kindIcon[flow.kind] ?? "rows"} className="size-3" />
                             </span>
-                            <span className="truncate font-medium text-fog-100">{flow.id}</span>
+                            <a
+                              href={`#${new URLSearchParams(open === flow.id ? {} : { flow: flow.id })}`}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-expanded={open === flow.id}
+                              className="truncate font-medium text-fog-100 outline-none focus-visible:underline focus-visible:decoration-gold-500"
+                            >
+                              {flow.id}
+                            </a>
                           </span>
                         </Td>
                         <Td>
@@ -556,7 +557,7 @@ export function App() {
                               onChange={reload}
                             />
                             )}
-                            <History flow={flow.id} at={route.at} />
+                            <History flow={flow.id} at={route.at} refreshed={updated?.getTime() ?? 0} />
                           </td>
                         </tr>
                       )}
@@ -599,7 +600,7 @@ export function App() {
         </>
         )}
       </main>
-      {tip && <TipCard tip={tip} />}
+      {tip && timelineShown && <TipCard tip={tip} />}
       {connecting && <Connect onClose={closeConnect} />}
     </div>
   );
@@ -639,13 +640,7 @@ function BelowPanel({
   const startDrag = (event: React.PointerEvent) => {
     event.preventDefault();
     const startY = event.clientY;
-    const move = (e: PointerEvent) => onResize(belowHeight(height + startY - e.clientY));
-    const stop = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", stop);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", stop);
+    follow(event, (e) => onResize(belowHeight(height + startY - e.clientY)));
   };
 
   const nudge = (event: React.KeyboardEvent) => {
@@ -703,6 +698,21 @@ function BelowPanel({
       )}
     </div>
   );
+}
+
+/**
+ * follows the pointer until it is let go. capturing it means the release arrives even when it
+ * happens outside the browser window, so a drag can never be left running.
+ */
+function follow(event: React.PointerEvent, move: (e: PointerEvent) => void) {
+  const handle = event.currentTarget as HTMLElement;
+  handle.setPointerCapture(event.pointerId);
+  const stop = () => {
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("lostpointercapture", stop);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("lostpointercapture", stop);
 }
 
 function paneWidth(wanted: number) {
@@ -957,17 +967,24 @@ function TrustHostKey({ flow }: { flow: string }) {
   );
 }
 
-function History({ flow, at }: { flow: string; at: string | null }) {
+function History({ flow, at, refreshed }: { flow: string; at: string | null; refreshed: number }) {
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const marked = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     marked.current?.scrollIntoView({ block: "nearest" });
-  }, [entries, at]);
+  }, [at, entries === null]);
 
   useEffect(() => {
-    get<HistoryEntry[]>(`api/flows/${encodeURIComponent(flow)}/history`).then(setEntries, () => setEntries([]));
-  }, [flow]);
+    let active = true;
+    get<HistoryEntry[]>(`api/flows/${encodeURIComponent(flow)}/history`).then(
+      (data) => active && setEntries(data),
+      () => active && setEntries((current) => current ?? []),
+    );
+    return () => {
+      active = false;
+    };
+  }, [flow, refreshed]);
 
   if (entries === null) return <p className="text-xs text-fog-500">loading history</p>;
   if (entries.length === 0) return <p className="text-xs text-fog-500">nothing recorded yet</p>;
