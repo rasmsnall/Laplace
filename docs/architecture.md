@@ -1,7 +1,7 @@
 # laplace: Architecture
 
 **Document type** Technical architecture specification
-**Status** Complete and implemented. Describes version 0.2.0 as built.
+**Status** Complete and implemented. Describes version 0.2.1 as built.
 **Audience** Anyone operating, extending or reviewing laplace. No prior context assumed.
 **Companion documents** `reference.md` for settings and endpoints, `operations.md` for running it.
 **Version** 1.0

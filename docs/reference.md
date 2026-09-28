@@ -1,7 +1,7 @@
 # laplace: Reference
 
 **Document type** Configuration and interface reference
-**Status** Complete. Describes version 0.2.0 as built.
+**Status** Complete. Describes version 0.2.1 as built.
 **Audience** Whoever declares flows, connects jobs, or deploys laplace.
 **Companion documents** `architecture.md` for the design, `operations.md` for running it.
 **Version** 1.0
