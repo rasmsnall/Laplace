@@ -92,6 +92,8 @@ pub struct Status {
     pub last_ok: Option<DateTime<Utc>>,
     /// a changed sftp host key is waiting to be confirmed
     pub host_key_pending: bool,
+    /// for databricks flows, when cost tracking is on
+    pub cost: Option<db::CostSummary>,
     #[serde(skip)]
     pub alerted_state: String,
     #[serde(skip)]
@@ -106,6 +108,7 @@ pub async fn all(
     let states = db::flow_states(pool).await?;
     let calls = db::call_totals_since(pool, Utc::now() - TimeDelta::hours(1)).await?;
     let pending_host_keys = db::flows_with_pending_host_key(pool).await?;
+    let costs = db::job_cost_summaries(pool).await?;
 
     let mut statuses: Vec<Status> = flows
         .iter()
@@ -138,6 +141,10 @@ pub async fn all(
                 detail,
                 last_ok: state.last_ok,
                 host_key_pending: pending_host_keys.contains(&flow.id),
+                cost: match flow.kind {
+                    Kind::Databricks { job_id, .. } => costs.get(&(job_id as i64)).cloned(),
+                    _ => None,
+                },
                 alerted_state: state.alerted_state,
                 recorded_state: state.recorded_state,
             }
@@ -173,7 +180,7 @@ pub fn apply_maintenance(statuses: &mut [Status], config: &Config, zone: Tz, now
 }
 
 fn warning(state: &FlowState) -> Option<String> {
-    let warnings: Vec<&str> = [&state.check_warning, &state.anomaly]
+    let warnings: Vec<&str> = [&state.check_warning, &state.anomaly, &state.cost_warning]
         .into_iter()
         .flatten()
         .map(String::as_str)

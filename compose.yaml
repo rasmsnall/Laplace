@@ -28,6 +28,8 @@ services:
       INTEGRATIONS_WEBHOOK: ${INTEGRATIONS_WEBHOOK:-}
       DATABRICKS_HOST: ${DATABRICKS_HOST:-}
       DATABRICKS_TOKEN: ${DATABRICKS_TOKEN:-}
+      DATABRICKS_WAREHOUSE_ID: ${DATABRICKS_WAREHOUSE_ID:-}
+      DATABRICKS_WORKSPACE_ID: ${DATABRICKS_WORKSPACE_ID:-}
     volumes:
       - ./flows.toml:/etc/laplace/flows.toml:ro
       - ./demo/landing:/landing:ro

@@ -162,6 +162,7 @@ step downstream. A cycle in `after` is rejected when the file is loaded.
 | A run's numbers are unusual | Any flow. A number below half or above double the median of the last ten runs, with the band set by `anomaly_tolerance` |
 | A table was left out of the latest load | `delta` checks. Its last commit is more than six hours older than the newest |
 | A schema changed | `delta` checks. Columns added, dropped or retyped, shown for 24 hours |
+| A job cost far more than usual | `databricks` flows with cost tracking on. Yesterday above double the median of the two weeks before, and at least 1 more |
 
 laplace adds numbers of its own to the ones jobs send: `seconds` for heartbeat runs, `bytes`
 for files, and `rows`, `files`, `bytes` and `tables` for Delta loads. A load that suddenly
@@ -336,7 +337,8 @@ log like any other.
 | `state_changes` | Every change of state, for reports |
 | `registered_flows` | Flows created by jobs reporting in |
 | `jobs` | Periodic work and when it is next due |
-| `host_keys`, `delta_schemas` | What SFTP servers and Delta tables looked like last time |
+| `host_keys`, `delta_schemas`, `file_observations` | What SFTP servers, Delta tables and watched folders looked like last time |
+| `job_costs` | What each Databricks job cost per day, at list price |
 | `members`, `group_roles`, `job_tokens`, `settings`, `audit` | Access, settings and the audit log |
 
 Tokens are stored as SHA-256 hashes. Queries are static SQL with bound parameters.

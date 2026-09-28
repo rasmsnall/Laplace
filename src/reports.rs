@@ -13,6 +13,8 @@ pub struct Report {
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
     pub flows: Vec<FlowReport>,
+    /// the currency of the costs, as databricks lists its prices
+    pub currency: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -31,6 +33,8 @@ pub struct FlowReport {
     pub runs_failed: i64,
     /// uptime of each day of the period, none for a day with nothing measured or still to come
     pub days: Vec<Option<f64>>,
+    /// databricks cost at list price for the month, when cost tracking is on
+    pub cost: Option<f64>,
 }
 
 #[derive(sqlx::FromRow, Clone)]
@@ -89,6 +93,21 @@ pub async fn build(
         .map(|(flow, ok, failed)| (flow, (ok, failed)))
         .collect();
 
+    // billing days are utc dates; the month's local days are close enough for a cost total
+    let costs: Vec<(i64, f64, String)> = sqlx::query_as(
+        "select job_id, sum(cost), max(currency) from job_costs
+         where day >= $1::date and day < $2::date group by job_id",
+    )
+    .bind(from.with_timezone(&zone).date_naive())
+    .bind(to.with_timezone(&zone).date_naive())
+    .fetch_all(pool)
+    .await?;
+    let currency = costs.first().map(|(_, _, currency)| currency.clone());
+    let costs: HashMap<i64, f64> = costs
+        .into_iter()
+        .map(|(job, cost, _)| (job, cost))
+        .collect();
+
     let flows = flows
         .iter()
         .map(|flow| {
@@ -111,11 +130,22 @@ pub async fn build(
                 runs_ok,
                 runs_failed,
                 days: daily(changes, from, to, until, zone),
+                cost: match flow.kind {
+                    crate::config::Kind::Databricks { job_id, .. } => {
+                        costs.get(&(job_id as i64)).copied()
+                    }
+                    _ => None,
+                },
             }
         })
         .collect();
 
-    Ok(Report { from, to, flows })
+    Ok(Report {
+        from,
+        to,
+        flows,
+        currency,
+    })
 }
 
 /// the period cut into local days, each summarized on its own

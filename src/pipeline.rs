@@ -98,6 +98,7 @@ mod tests {
             detail: String::new(),
             last_ok: None,
             host_key_pending: false,
+            cost: None,
             alerted_state: String::new(),
             recorded_state: None,
         }

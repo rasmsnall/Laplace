@@ -46,6 +46,8 @@ env:
   # LAPLACE_ADMINS: someone@company.se
   # DELTA_URI: abfss://laplace@account.dfs.core.windows.net/history
   # DATABRICKS_HOST: https://adb-<id>.azuredatabricks.net
+  # DATABRICKS_WAREHOUSE_ID: <sql warehouse id>   # turns on cost per job
+  # DATABRICKS_WORKSPACE_ID: <workspace id>
   # LAPLACE_MAIL_FROM: laplace@company.se
   # LAPLACE_GRAPH_TENANT_ID: <tenant id>
   # LAPLACE_GRAPH_CLIENT_ID: <application id>

@@ -264,6 +264,8 @@ ID, Google, Okta or Keycloak.
 | Variable | Meaning |
 |---|---|
 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` | For `databricks` flows and for picking jobs from the workspace |
+| `DATABRICKS_WAREHOUSE_ID` | A SQL warehouse; turns on cost per Databricks job (see `operations.md`, Chapter II, Section 9) |
+| `DATABRICKS_WORKSPACE_ID` | Keeps costs to this workspace. The billing tables cover the whole account, and job ids are only unique per workspace |
 | `DELTA_URI` | Where run history is exported, e.g. `abfss://laplace@account.dfs.core.windows.net/history` |
 | `AZURE_STORAGE_*`, `GOOGLE_APPLICATION_CREDENTIALS` | For `storage` and `delta` flows and the export |
 | Any name in `password_env` or `webhook_env` | The secret that field refers to |

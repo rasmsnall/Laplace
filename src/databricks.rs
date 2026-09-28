@@ -12,8 +12,9 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn from_env() -> Result<Self> {
-        let host = std::env::var("DATABRICKS_HOST").context("DATABRICKS_HOST is not set")?;
-        let token = std::env::var("DATABRICKS_TOKEN").context("DATABRICKS_TOKEN is not set")?;
+        let host = crate::optional_env("DATABRICKS_HOST").context("DATABRICKS_HOST is not set")?;
+        let token =
+            crate::optional_env("DATABRICKS_TOKEN").context("DATABRICKS_TOKEN is not set")?;
         Ok(Self {
             host: host.trim_end_matches('/').to_owned(),
             token,
@@ -29,6 +30,26 @@ impl Workspace {
         Ok(client
             .get(url)
             .bearer_auth(&self.token)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?)
+    }
+}
+
+impl Workspace {
+    pub async fn post<T: serde::de::DeserializeOwned>(
+        &self,
+        client: &reqwest::Client,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<T> {
+        let url = format!("{}{path}", self.host);
+        Ok(client
+            .post(url)
+            .bearer_auth(&self.token)
+            .json(body)
             .send()
             .await?
             .error_for_status()?

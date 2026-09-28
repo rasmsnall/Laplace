@@ -23,6 +23,7 @@
   - 6. Email
   - 7. Network
   - 8. The local demo
+  - 9. Databricks cost
 - III. Configuration
   - 1. Changing flows
   - 2. Connecting jobs
@@ -206,6 +207,32 @@ docker compose up -d --build
 The dashboard is on http://localhost:8090 and demo alert emails on http://localhost:8025.
 The compose file includes a demo SFTP server and demo landing folders. Its passwords are
 throwaway values that must never be valid anywhere else.
+
+### 9. Databricks cost
+
+laplace can show what each Databricks job costs, next to its runs and in the monthly report,
+and warn when a job suddenly costs far more than usual. It reads Databricks' billing system
+tables through a SQL warehouse:
+
+1. Pick or create a SQL warehouse; a small serverless one is enough. Set
+   `DATABRICKS_WAREHOUSE_ID` to its id and `DATABRICKS_WORKSPACE_ID` to this workspace's id.
+2. Give laplace's token, preferably a service principal's, `CAN USE` on the warehouse and
+   read access to the billing tables:
+
+```
+GRANT USE CATALOG ON CATALOG system TO `laplace`;
+GRANT USE SCHEMA ON SCHEMA system.billing TO `laplace`;
+GRANT SELECT ON TABLE system.billing.usage TO `laplace`;
+GRANT SELECT ON TABLE system.billing.list_prices TO `laplace`;
+```
+
+Every hour laplace fetches the cost per job and day for the last 40 days and replaces what it
+had, so late corrections land. Usage reaches the tables within about 12 hours, so costs run
+up to yesterday, not up to the minute.
+
+The numbers are Databricks' own charge at list price: before any discount the account has,
+and on Azure without the charge for the virtual machines of classic compute. They show which
+job costs what and when that changes; the invoice remains the source for the total.
 
 ## III. Configuration
 
@@ -409,3 +436,4 @@ EOF
 | Anomalies use a median of ten runs | Month-end and other seasonal loads can warn | Raise `anomaly_tolerance` for those flows |
 | Graph email is HTML only | Mail clients without HTML show little | Use SMTP, which sends plain text as well |
 | A restore does not move the nightly schedule | Backups keep targeting the old cluster | Step 4 of Chapter VI, Section 2 |
+| Databricks cost is at list price | Discounts and the cloud's machine charges are not in it | Use it to compare jobs and spot changes; the invoice for the total |

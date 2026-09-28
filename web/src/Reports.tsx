@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState } from "react";
 import { CopyLink } from "./CopyLink";
 import { Icon } from "./icons";
 import { Reveal } from "./Motion";
+import { money } from "./format";
 import { go, shareLink } from "./route";
 import { Tile } from "./Tile";
 
@@ -18,6 +19,8 @@ interface FlowReport {
   mean_recovery_seconds: number | null;
   runs_ok: number;
   runs_failed: number;
+  /** databricks cost at list price for the month, when cost tracking is on */
+  cost: number | null;
   /** uptime of each day of the month, null before the flow reported or for days to come */
   days: (number | null)[];
 }
@@ -26,9 +29,10 @@ interface Report {
   from: string;
   to: string;
   flows: FlowReport[];
+  currency: string | null;
 }
 
-type SortKey = "flow" | "uptime" | "target" | "incidents" | "outage" | "recovery" | "runs";
+type SortKey = "flow" | "uptime" | "target" | "incidents" | "outage" | "recovery" | "runs" | "cost";
 
 const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "flow", label: "flow" },
@@ -49,6 +53,7 @@ const SORT: Record<SortKey, (flow: FlowReport) => number | string> = {
   outage: (f) => f.longest_outage_seconds,
   recovery: (f) => f.mean_recovery_seconds ?? -1,
   runs: (f) => f.runs_failed,
+  cost: (f) => f.cost ?? -1,
 };
 
 const LOCALE = "en-GB";
@@ -122,6 +127,8 @@ export function Reports({ month: linked }: { month: string | null }) {
   });
 
   const flows = report?.flows ?? [];
+  // the cost column appears once databricks cost tracking is on
+  const columns = report?.currency ? [...COLUMNS, { key: "cost" as const, label: "cost" }] : COLUMNS;
   const measured = flows.filter((f) => f.uptime !== null);
   const missed = flows.filter((f) => f.met === false);
   const average = measured.length ? measured.reduce((sum, f) => sum + (f.uptime ?? 0), 0) / measured.length : null;
@@ -182,6 +189,12 @@ export function Reports({ month: linked }: { month: string | null }) {
       </div>
       <p className="mt-3 mb-10 font-mono text-[12px] text-fog-500">
         click a tile to filter or sort · click a flow for its days · ← → change month
+        {report?.currency && (
+          <>
+            {" · "}databricks cost this month{" "}
+            <span className="text-fog-100">{money(flows.reduce((sum, f) => sum + (f.cost ?? 0), 0), report.currency)}</span> at list price
+          </>
+        )}
       </p>
 
       {report === null && !error && <p className="text-fog-500">loading</p>}
@@ -194,7 +207,7 @@ export function Reports({ month: linked }: { month: string | null }) {
               <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
                 <thead className="bg-ink-900 text-fog-300">
                   <tr>
-                    {COLUMNS.map(({ key, label }, i) => (
+                    {columns.map(({ key, label }, i) => (
                       <th
                         key={key}
                         aria-sort={sort.key === key ? (sort.descending ? "descending" : "ascending") : undefined}
@@ -256,10 +269,15 @@ export function Reports({ month: linked }: { month: string | null }) {
                             <span className="text-fog-700"> / </span>
                             <span className={flow.runs_failed ? "text-red-300" : "text-fog-500"}>{flow.runs_failed}</span>
                           </td>
+                          {report.currency && (
+                            <td className="px-3 text-right tabular-nums">
+                              {flow.cost === null ? <span className="text-fog-700">none</span> : <span className="text-fog-300">{money(flow.cost, report.currency)}</span>}
+                            </td>
+                          )}
                         </tr>
                         {open.has(flow.id) && (
                           <tr className="border-b border-line bg-ink-900">
-                            <td colSpan={COLUMNS.length} className="px-4 py-4">
+                            <td colSpan={columns.length} className="px-4 py-4">
                               <Days days={flow.days} month={month} target={flow.target} />
                             </td>
                           </tr>
