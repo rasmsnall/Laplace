@@ -110,6 +110,6 @@ Markdown in `docs/` is the single source of truth. Word copies are generated fro
 
 ## Status
 
-Released as 0.2.0. Every kind of flow, alerting to Teams, Slack and email, sign-in with roles,
+Released as 0.2.1. Every kind of flow, alerting to Teams, Slack and email, sign-in with roles,
 reports and the Kubernetes deployment are implemented and tested end to end. The known
 gaps are listed in `docs/operations.md`, Appendix B.
