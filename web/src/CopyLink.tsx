@@ -38,6 +38,7 @@ export function CopyLink({ link, label = "copy link" }: { link: string; label?: 
     <button
       onClick={copy}
       title={link}
+      aria-label={label}
       className="h-7 rounded-[4px] border border-line px-2.5 text-[13px] text-fog-300 hover:border-fog-700 hover:text-fog-100"
     >
       {copied === null ? label : copied ? "copied" : "copy failed"}

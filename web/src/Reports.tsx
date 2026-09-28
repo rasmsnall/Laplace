@@ -91,17 +91,29 @@ export function Reports({ month: linked }: { month: string | null }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    let active = true;
     setReport(null);
     setError(null);
     fetch(`api/reports?month=${month}`)
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`${response.status}`))))
-      .then(setReport, (e: Error) => setError(e.message));
+      .then((response) => {
+        // the session ran out; loading the page again goes through sign-in
+        if (response.status === 401) window.location.reload();
+        return response.ok ? response.json() : Promise.reject(new Error(`${response.status}`));
+      })
+      .then(
+        (data: Report) => active && setReport(data),
+        (e: Error) => active && setError(e.message),
+      );
+    return () => {
+      active = false;
+    };
   }, [month]);
 
   // left and right arrows step through months, unless someone is typing
   useEffect(() => {
     const step = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.target instanceof Element && event.target.closest("input, textarea, select, [role=img], [role=radio], [role=tab], .overflow-x-auto")) return;
       if (event.key === "ArrowLeft") setMonth(shiftMonth(month, -1));
       if (event.key === "ArrowRight" && month < currentMonth()) setMonth(shiftMonth(month, 1));
     };

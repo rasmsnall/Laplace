@@ -87,6 +87,7 @@ mod tests {
             id: id.into(),
             kind: "heartbeat",
             source: String::new(),
+            link: None,
             every: String::new(),
             after: Vec::new(),
             owner: None,

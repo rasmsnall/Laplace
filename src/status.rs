@@ -79,6 +79,8 @@ pub struct Status {
     pub id: String,
     pub kind: &'static str,
     pub source: String,
+    /// a page a browser can open for the source, when there is one
+    pub link: Option<String>,
     pub every: String,
     pub after: Vec<String>,
     pub owner: Option<String>,
@@ -116,6 +118,7 @@ pub async fn all(
                 id: flow.id.clone(),
                 kind: flow.kind.name(),
                 source: flow.source_label(),
+                link: flow.source_link(),
                 every: schedule
                     .as_ref()
                     .map_or_else(|| human::duration(flow.every), Schedule::label),

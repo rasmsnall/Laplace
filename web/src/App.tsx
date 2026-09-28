@@ -18,6 +18,8 @@ interface Flow {
   kind: string;
   every: string;
   source: string;
+  /** a page a browser can open for the source: the api, the databricks job, the bucket */
+  link: string | null;
   state: State;
   detail: string;
   last_ok: string | null;
@@ -179,13 +181,7 @@ export function App() {
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = pane;
-    const move = (e: PointerEvent) => setPane(paneWidth(startWidth + startX - e.clientX));
-    const stop = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", stop);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", stop);
+    follow(event, (e) => setPane(paneWidth(startWidth + startX - e.clientX)));
   };
 
   const toggleTimeline = () => {
@@ -206,10 +202,6 @@ export function App() {
   };
 
   const loaded = flows !== null;
-  useEffect(() => {
-    if (open && loaded) document.getElementById(`flow-${open}`)?.scrollIntoView({ block: "nearest" });
-  }, [open, loaded]);
-
   const all = flows ?? [];
   const kinds = ["all", ...new Set(all.map((f) => f.kind))];
   const visible = all
@@ -221,6 +213,22 @@ export function App() {
   const problems = all.filter((f) => needsAttention(f.state) && !f.acknowledged).length;
   const filters = (kind === "all" ? 0 : 1) + (query ? 1 : 0) + (only ? 1 : 0);
   const attention = all.filter((f) => needsAttention(f.state) && !f.acknowledged);
+
+  // a flow opened from a pipeline, a report or a link is brought into view, and filters that
+  // would hide it are cleared first
+  useEffect(() => {
+    if (!open || !loaded) return;
+    if (!visible.some((f) => f.id === open) && all.some((f) => f.id === open)) {
+      setKind("all");
+      setQuery("");
+      setOnly(null);
+    }
+    const frame = requestAnimationFrame(() =>
+      document.getElementById(`flow-${open}`)?.scrollIntoView({ block: "center" }),
+    );
+    return () => cancelAnimationFrame(frame);
+    // only when a different flow is opened, not on every refresh
+  }, [open, loaded]);
 
   const showOnly = (label: string, test: (flow: Flow) => boolean) => {
     if (only?.label === label) return setOnly(null);
@@ -472,7 +480,14 @@ export function App() {
                             <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] border border-ink-600 bg-ink-800 text-fog-300">
                               <Icon name={kindIcon[flow.kind] ?? "rows"} className="size-3" />
                             </span>
-                            <span className="truncate font-medium text-fog-100">{flow.id}</span>
+                            <a
+                              href={`#${new URLSearchParams(open === flow.id ? {} : { flow: flow.id })}`}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-expanded={open === flow.id}
+                              className="truncate font-medium text-fog-100 outline-none focus-visible:underline focus-visible:decoration-gold-500"
+                            >
+                              {flow.id}
+                            </a>
                           </span>
                         </Td>
                         <Td>
@@ -495,7 +510,20 @@ export function App() {
                         </Td>
                         <Td>{flow.owner ? <span className="text-fog-300">{flow.owner}</span> : <span className="text-fog-700">none</span>}</Td>
                         <Td title={flow.source}>
-                          <span className="text-fog-300 underline decoration-fog-700 underline-offset-4">{flow.source}</span>
+                          {flow.link ? (
+                            <a
+                              href={flow.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex max-w-full items-center gap-1 text-fog-300 underline decoration-fog-700 underline-offset-4 hover:text-fog-100 hover:decoration-gold-500"
+                            >
+                              <span className="truncate">{flow.source}</span>
+                              <Icon name="external" className="size-3 shrink-0 text-fog-500" />
+                            </a>
+                          ) : (
+                            <span className="text-fog-300">{flow.source}</span>
+                          )}
                         </Td>
                         <Td align="right" title={flow.last_ok ?? undefined}>
                           {flow.last_ok ? (
@@ -556,7 +584,7 @@ export function App() {
                               onChange={reload}
                             />
                             )}
-                            <History flow={flow.id} at={route.at} />
+                            <History flow={flow.id} at={route.at} refreshed={updated?.getTime() ?? 0} />
                           </td>
                         </tr>
                       )}
@@ -599,7 +627,7 @@ export function App() {
         </>
         )}
       </main>
-      {tip && <TipCard tip={tip} />}
+      {tip && timelineShown && <TipCard tip={tip} />}
       {connecting && <Connect onClose={closeConnect} />}
     </div>
   );
@@ -639,13 +667,7 @@ function BelowPanel({
   const startDrag = (event: React.PointerEvent) => {
     event.preventDefault();
     const startY = event.clientY;
-    const move = (e: PointerEvent) => onResize(belowHeight(height + startY - e.clientY));
-    const stop = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", stop);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", stop);
+    follow(event, (e) => onResize(belowHeight(height + startY - e.clientY)));
   };
 
   const nudge = (event: React.KeyboardEvent) => {
@@ -703,6 +725,21 @@ function BelowPanel({
       )}
     </div>
   );
+}
+
+/**
+ * follows the pointer until it is let go. capturing it means the release arrives even when it
+ * happens outside the browser window, so a drag can never be left running.
+ */
+function follow(event: React.PointerEvent, move: (e: PointerEvent) => void) {
+  const handle = event.currentTarget as HTMLElement;
+  handle.setPointerCapture(event.pointerId);
+  const stop = () => {
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("lostpointercapture", stop);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("lostpointercapture", stop);
 }
 
 function paneWidth(wanted: number) {
@@ -957,17 +994,24 @@ function TrustHostKey({ flow }: { flow: string }) {
   );
 }
 
-function History({ flow, at }: { flow: string; at: string | null }) {
+function History({ flow, at, refreshed }: { flow: string; at: string | null; refreshed: number }) {
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const marked = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     marked.current?.scrollIntoView({ block: "nearest" });
-  }, [entries, at]);
+  }, [at, entries === null]);
 
   useEffect(() => {
-    get<HistoryEntry[]>(`api/flows/${encodeURIComponent(flow)}/history`).then(setEntries, () => setEntries([]));
-  }, [flow]);
+    let active = true;
+    get<HistoryEntry[]>(`api/flows/${encodeURIComponent(flow)}/history`).then(
+      (data) => active && setEntries(data),
+      () => active && setEntries((current) => current ?? []),
+    );
+    return () => {
+      active = false;
+    };
+  }, [flow, refreshed]);
 
   if (entries === null) return <p className="text-xs text-fog-500">loading history</p>;
   if (entries.length === 0) return <p className="text-xs text-fog-500">nothing recorded yet</p>;

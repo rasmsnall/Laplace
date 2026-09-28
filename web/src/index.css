@@ -154,6 +154,11 @@ body {
   animation: live 2s ease-in-out infinite;
 }
 
+/* a printed or saved report shows every section, scrolled into view or not */
+@media print {
+  .reveal { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .refresh-bar, .live-dot, .rise, .flow-dash, .fade-in { animation: none; }
   .reveal { opacity: 1; transform: none; transition: none; }

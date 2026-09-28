@@ -219,6 +219,24 @@ impl Flow {
         }
     }
 
+    /// a page a browser can open for what the flow watches: the api, the databricks job, or the
+    /// bucket in the google cloud console. sftp servers, azure storage and pushed jobs have none
+    pub fn source_link(&self) -> Option<String> {
+        match &self.kind {
+            Kind::Http { url, .. } => web_link(url),
+            Kind::Databricks { job_id, .. } => {
+                databricks_job_link(crate::optional_env("DATABRICKS_HOST").as_deref(), *job_id)
+            }
+            Kind::Storage(Storage { url, .. }) | Kind::Delta(DeltaTables { url, .. }) => {
+                let bucket_and_prefix = url.strip_prefix("gs://")?;
+                web_link(&format!(
+                    "https://console.cloud.google.com/storage/browser/{bucket_and_prefix}"
+                ))
+            }
+            Kind::Heartbeat { .. } | Kind::Inbound { .. } | Kind::Sftp(_) => None,
+        }
+    }
+
     /// flows that watch polls itself; heartbeat and inbound flows are pushed to us
     pub fn poll_interval(&self) -> Option<Duration> {
         match &self.kind {
@@ -230,6 +248,16 @@ impl Flow {
             Kind::Heartbeat { .. } | Kind::Inbound { .. } => None,
         }
     }
+}
+
+fn databricks_job_link(host: Option<&str>, job_id: u64) -> Option<String> {
+    web_link(&format!("{}/jobs/{job_id}", host?.trim_end_matches('/')))
+}
+
+/// only http and https become links, so nothing else can reach the dashboard's href
+fn web_link(candidate: &str) -> Option<String> {
+    let parsed = url::Url::parse(candidate).ok()?;
+    matches!(parsed.scheme(), "http" | "https").then(|| parsed.to_string())
 }
 
 impl Config {
@@ -389,6 +417,52 @@ mod tests {
         );
         assert!(window.covers("bank-statements"));
         assert!(!window.covers("erp-api"));
+    }
+
+    #[test]
+    fn links_only_to_pages_a_browser_can_open() {
+        let flow = |kind: &str| {
+            Config::parse(&FILE.replace(r#"kind = "heartbeat""#, kind))
+                .unwrap()
+                .flows[0]
+                .source_link()
+        };
+        assert_eq!(
+            flow(
+                r#"kind = "http"
+        url = "https://api.partner.example/health""#
+            )
+            .as_deref(),
+            Some("https://api.partner.example/health")
+        );
+        assert_eq!(
+            flow(
+                r#"kind = "storage"
+        url = "gs://landing/erp/""#
+            )
+            .as_deref(),
+            Some("https://console.cloud.google.com/storage/browser/landing/erp/")
+        );
+        assert_eq!(
+            flow(
+                r#"kind = "storage"
+        url = "abfss://landing@account.dfs.core.windows.net/erp/""#
+            ),
+            None
+        );
+        assert_eq!(flow(r#"kind = "heartbeat""#), None);
+        assert_eq!(
+            flow(
+                r#"kind = "http"
+        url = "javascript:alert(1)""#
+            ),
+            None
+        );
+        assert_eq!(
+            databricks_job_link(Some("https://adb-1.azuredatabricks.net/"), 42).as_deref(),
+            Some("https://adb-1.azuredatabricks.net/jobs/42")
+        );
+        assert_eq!(databricks_job_link(None, 42), None);
     }
 
     #[test]

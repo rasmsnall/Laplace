@@ -14,6 +14,7 @@ const iconPaths = {
   alert: "M12 3 2 20h20zM12 10v4M12 17h.01",
   chevron: "M6 9l6 6 6-6",
   arrow: "M5 12h14M13 6l6 6-6 6",
+  external: "M14 4h6v6M20 4l-9 9M18 14v5H5V6h5",
   sort: "M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4",
   minus: "M5 12h14",
   transfer: "M4 8h15l-4-4M20 16H5l4 4",
