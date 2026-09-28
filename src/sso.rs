@@ -71,9 +71,11 @@ impl Sso {
             .context("LAPLACE_OIDC_CLIENT_ID is not set")?;
         let key = crate::optional_env("LAPLACE_SESSION_KEY")
             .context("sign-in needs LAPLACE_SESSION_KEY, the same on every replica: `openssl rand -base64 64`")?;
+        // `openssl rand -base64 64` wraps its output, so whitespace inside the key is ignored
+        let key: String = key.split_whitespace().collect();
         let key = Key::try_from(
             STANDARD
-                .decode(key.trim())
+                .decode(key)
                 .context("LAPLACE_SESSION_KEY is not base64")?
                 .as_slice(),
         )
