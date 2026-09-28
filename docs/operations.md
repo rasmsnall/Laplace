@@ -1,7 +1,7 @@
 # laplace: Operations
 
 **Document type** Operations manual
-**Status** Complete. Describes version 0.2.0 as built.
+**Status** Complete. Describes version 0.2.1 as built.
 **Audience** Whoever deploys laplace, keeps it running, and is told when it stops.
 **Companion documents** `architecture.md` for the design, `reference.md` for settings and endpoints.
 **Version** 1.0
