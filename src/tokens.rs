@@ -26,7 +26,7 @@ pub struct Token {
     pub revoked_at: Option<DateTime<Utc>>,
 }
 
-fn hash(token: &str) -> String {
+pub fn hash(token: &str) -> String {
     Sha256::digest(token.as_bytes())
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -103,10 +103,14 @@ impl Cache {
                 .execute(pool)
                 .await?;
         }
-        self.answers
-            .lock()
-            .unwrap()
-            .insert(hashed, (id.is_some(), Instant::now()));
+        // only valid tokens are remembered: there are few of them, while wrong guesses are
+        // unlimited and would pile up in memory
+        if id.is_some() {
+            self.answers
+                .lock()
+                .unwrap()
+                .insert(hashed, (true, Instant::now()));
+        }
         Ok(id.is_some())
     }
 

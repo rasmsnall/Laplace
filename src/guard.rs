@@ -61,18 +61,7 @@ impl Limiter {
 fn client_ip(app: &App, request: &Request) -> IpAddr {
     let forwarded = app
         .trust_proxy
-        .then(|| {
-            request
-                .headers()
-                .get("x-forwarded-for")?
-                .to_str()
-                .ok()?
-                .split(',')
-                .next()?
-                .trim()
-                .parse()
-                .ok()
-        })
+        .then(|| forwarded_client(request.headers().get("x-forwarded-for")?.to_str().ok()?))
         .flatten();
     forwarded.unwrap_or_else(|| {
         request
@@ -80,6 +69,12 @@ fn client_ip(app: &App, request: &Request) -> IpAddr {
             .get::<ConnectInfo<SocketAddr>>()
             .map_or(IpAddr::from([0, 0, 0, 0]), |info| info.0.ip())
     })
+}
+
+/// the proxy in front appends the address it saw, so only the last entry can be trusted;
+/// anything before it was sent by the client and could be made up to dodge the rate limits
+fn forwarded_client(header: &str) -> Option<IpAddr> {
+    header.rsplit(',').next()?.trim().parse().ok()
 }
 
 fn too_many() -> Response {
@@ -197,6 +192,19 @@ mod tests {
             limiter.allow("other-bucket", a, 3),
             "buckets are counted apart"
         );
+    }
+
+    #[test]
+    fn trusts_only_the_address_the_proxy_appended() {
+        assert_eq!(
+            forwarded_client("203.0.113.9, 198.51.100.7"),
+            Some(IpAddr::from([198, 51, 100, 7]))
+        );
+        assert_eq!(
+            forwarded_client("198.51.100.7"),
+            Some(IpAddr::from([198, 51, 100, 7]))
+        );
+        assert_eq!(forwarded_client("made-up, nonsense"), None);
     }
 
     #[test]

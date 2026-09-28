@@ -15,7 +15,7 @@ use crate::db::{self, Outcome};
 use crate::inbound::Call;
 use crate::registry::{self, PushKind};
 use crate::schedule::{CronStyle, Schedule};
-use crate::{App, databricks, reports, sso};
+use crate::{App, databricks, reports, sso, tokens};
 use crate::{status, timeline};
 
 /// reachable without signing in: jobs report here with their own token, and sign-in itself lives here
@@ -321,7 +321,10 @@ struct Announce {
 }
 
 impl Announce {
-    fn settings(&self) -> ApiResult<registry::Settings> {
+    fn settings(
+        &self,
+        owners: &std::collections::HashMap<String, crate::config::Owner>,
+    ) -> ApiResult<registry::Settings> {
         let every = duration("every", self.every.as_deref(), 60)?;
         let grace = duration("grace", self.grace.as_deref(), 0)?;
         let after = self.after.as_ref().map(|after| {
@@ -332,7 +335,15 @@ impl Announce {
                 .map(str::to_owned)
                 .collect()
         });
-        let owner = self.owner.clone().filter(|owner| registry::valid_id(owner));
+        // an owner missing from [owners] is ignored rather than refused: refusing would stop the
+        // job's reports, and a monitor must never lose those over a misrouted alert
+        let owner = self.owner.clone().filter(|owner| {
+            let known = owners.contains_key(owner);
+            if !known {
+                eprintln!("a job named owner {owner}, which is not in [owners]; ignoring it");
+            }
+            known
+        });
         let calendar: Option<Vec<String>> = self.calendar.as_ref().map(|calendar| {
             calendar
                 .split(',')
@@ -427,21 +438,30 @@ async fn ping(
 ) -> ApiResult<StatusCode> {
     authorize(&app, &headers).await?;
     let metrics = parse_metrics(&body)?;
-    let flow = find_or_register(&app, &flow, PushKind::Heartbeat, announce.settings()?).await?;
+    let flow = find_or_register(
+        &app,
+        &flow,
+        PushKind::Heartbeat,
+        announce.settings(&app.config().owners)?,
+    )
+    .await?;
 
-    match result.as_str() {
-        "start" => db::record(&app.pool, &flow.id, Outcome::Start, "started", None).await?,
-        "0" => {
+    if result == "start" {
+        db::record(&app.pool, &flow.id, Outcome::Start, "started", None).await?;
+        return Ok(StatusCode::NO_CONTENT);
+    }
+    let code: i64 = result.parse().map_err(|_| {
+        ApiError(
+            StatusCode::BAD_REQUEST,
+            "expected start or an exit code".into(),
+        )
+    })?;
+    match code {
+        0 => {
             db::record(&app.pool, &flow.id, Outcome::Ok, "exit 0", metrics.as_ref()).await?;
             anomaly::evaluate(&app.pool, &flow.id, flow.anomaly_tolerance).await?;
         }
         code => {
-            let code: i64 = code.parse().map_err(|_| {
-                ApiError(
-                    StatusCode::BAD_REQUEST,
-                    "expected start or an exit code".into(),
-                )
-            })?;
             let detail = format!("exited with code {code}");
             db::record(
                 &app.pool,
@@ -473,7 +493,13 @@ async fn calls(
     Json(body): Json<Calls>,
 ) -> ApiResult<StatusCode> {
     authorize(&app, &headers).await?;
-    let flow = find_or_register(&app, &flow, PushKind::Inbound, announce.settings()?).await?;
+    let flow = find_or_register(
+        &app,
+        &flow,
+        PushKind::Inbound,
+        announce.settings(&app.config().owners)?,
+    )
+    .await?;
 
     match body {
         Calls::One(call) => app.calls.add(&flow.id, &[call]),
@@ -709,7 +735,14 @@ async fn authorize(app: &App, headers: &HeaderMap) -> ApiResult<()> {
         return Ok(());
     }
     let valid = match sent {
-        Some(token) if app.ingest_token.as_deref() == Some(token) => true,
+        Some(token)
+            if app
+                .ingest_token
+                .as_deref()
+                .is_some_and(|expected| tokens::hash(expected) == tokens::hash(token)) =>
+        {
+            true
+        }
         Some(token) => app.tokens.valid(&app.pool, token).await?,
         None => false,
     };
