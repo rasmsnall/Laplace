@@ -224,6 +224,12 @@ Task Scheduler job is wrapped in `scripts/heartbeat.ps1`, with `LAPLACE_URL` and
 `LAPLACE_TOKEN` set for the account the task runs as. Databricks jobs can be picked from the
 workspace with one click.
 
+For a file transfer, use two flows: the job doing the transfer reports its own runs, and an
+`sftp` or `storage` flow watches the folder, declared `after` the job so one fault gives one
+alert. The job's reports catch a transfer that failed or never ran, including one whose file
+was collected between two polls, which no folder check can see. The folder check catches what
+the job cannot see about itself: the file was never there, was empty, or was not collected.
+
 ### 3. Settings kept in the database
 
 People, groups, job tokens, the time zone, retention and auto-registration are changed on the

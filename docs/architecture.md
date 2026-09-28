@@ -177,10 +177,28 @@ caller records the report in one transaction, so a check either counts in full o
 
 ### 2. SFTP and object storage
 
-Both list a folder and apply the same rules to matching files: a new, non-empty file is a
-success, an empty one is a problem, and a file still there after `pickup` has not been
-collected by whoever should take it. Storage uses the `object_store` crate for `gs://`,
-`abfss://` and local paths alike.
+Both list a folder and apply the same rules to matching files. Each poll's listing is
+remembered, file by file, and compared with the next:
+
+- A file counts as arrived once it is unchanged, same size and modified time, on two polls in
+  a row. An upload still in progress, or one cut off part way and still growing when seen,
+  is therefore not taken for a finished file. The cost is one poll: a file counts at most
+  `poll` after it appeared, which the schedule's `grace` should cover.
+- A file counts once. One rewritten under the same name counts again when it settles, and one
+  removed and uploaded again counts again.
+- Arrival is when laplace first saw the file, not its modified time. A file uploaded with an
+  older, preserved time (`put -p`, `scp -p`, rsync) still counts, and `pickup` runs from
+  arrival too.
+- A file that stays empty is a problem; an upload that starts as an empty file is not.
+- A flow that ran before files were remembered takes what is in the folder on its first
+  remembered poll as its starting point, so nothing old is reported as new.
+
+Storage uses the `object_store` crate for `gs://`, `abfss://` and local paths alike, and
+keys files by their full path, so files with the same name in different folders stay apart.
+
+Watching a folder cannot see a file that arrives and is collected between two polls. The
+job that does the transfer reporting its own runs covers that; see `operations.md`,
+Chapter III, Section 2.
 
 On first contact with an SFTP server, its host key is stored (trust on first use) unless
 `host_key` pins it. A later change is treated as a possible interception: laplace stops

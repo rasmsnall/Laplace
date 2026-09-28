@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::time::Duration;
@@ -5,6 +6,8 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};
 use chrono::{DateTime, Utc};
+
+use super::files::Observation;
 use ssh2::{HashType, Session};
 
 use super::Report;
@@ -16,8 +19,9 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 /// `trusted_key` is the key seen on earlier polls; a pinned `host_key` in the config wins over it
 pub fn check(
     config: &Sftp,
-    since: Option<DateTime<Utc>>,
     trusted_key: Option<&str>,
+    previous: &HashMap<String, Observation>,
+    baseline: bool,
 ) -> Result<Report> {
     let session = handshake(config)?;
     let seen = fingerprint(&session)?;
@@ -41,8 +45,10 @@ pub fn check(
         .into_iter()
         .filter(|(_, stat)| stat.is_file())
         .filter_map(|(path, stat)| {
+            let name = path.file_name()?.to_str()?.to_owned();
             Some(RemoteFile {
-                name: path.file_name()?.to_str()?.to_owned(),
+                key: name.clone(),
+                name,
                 size: stat.size.unwrap_or(0),
                 modified: DateTime::from_timestamp(stat.mtime? as i64, 0)?,
             })
@@ -51,7 +57,7 @@ pub fn check(
 
     Ok(Report {
         host_key: Some(seen),
-        ..files::evaluate(&config.files, remote_files, since)?
+        ..files::evaluate(&config.files, remote_files, previous, baseline, Utc::now())?
     })
 }
 
