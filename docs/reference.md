@@ -89,7 +89,7 @@ change without a restart (see `architecture.md`, Chapter IV, Section 4).
 | `calendar` | none | `["se"]`, `["fi"]` or both: only business days in those countries count |
 | `timezone` | `LAPLACE_TIMEZONE` | The zone `cron` is read in |
 | `grace` | `0` | How long after a deadline a success may still arrive |
-| `source` | derived | Shown in the dashboard's source column |
+| `source` | derived | Shown in the dashboard's source column. HTTP checks, Databricks jobs and `gs://` storage also link to their page |
 | `after` | none | Flows that must succeed before this one can, making a pipeline |
 | `owner` | none | An owner from `[owners]`, whose webhook and addresses get the alerts |
 | `sla` | none | Uptime target for reports, e.g. `0.995` |

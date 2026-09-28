@@ -393,6 +393,7 @@ mod tests {
             id: "partner <statements>".into(),
             kind: "sftp",
             source: "sftp://bank@host/out".into(),
+            link: None,
             every: "1d".into(),
             after: vec![],
             owner: Some("finance".into()),

@@ -18,6 +18,8 @@ interface Flow {
   kind: string;
   every: string;
   source: string;
+  /** a page a browser can open for the source: the api, the databricks job, the bucket */
+  link: string | null;
   state: State;
   detail: string;
   last_ok: string | null;
@@ -200,10 +202,6 @@ export function App() {
   };
 
   const loaded = flows !== null;
-  useEffect(() => {
-    if (open && loaded) document.getElementById(`flow-${open}`)?.scrollIntoView({ block: "nearest" });
-  }, [open, loaded]);
-
   const all = flows ?? [];
   const kinds = ["all", ...new Set(all.map((f) => f.kind))];
   const visible = all
@@ -215,6 +213,22 @@ export function App() {
   const problems = all.filter((f) => needsAttention(f.state) && !f.acknowledged).length;
   const filters = (kind === "all" ? 0 : 1) + (query ? 1 : 0) + (only ? 1 : 0);
   const attention = all.filter((f) => needsAttention(f.state) && !f.acknowledged);
+
+  // a flow opened from a pipeline, a report or a link is brought into view, and filters that
+  // would hide it are cleared first
+  useEffect(() => {
+    if (!open || !loaded) return;
+    if (!visible.some((f) => f.id === open) && all.some((f) => f.id === open)) {
+      setKind("all");
+      setQuery("");
+      setOnly(null);
+    }
+    const frame = requestAnimationFrame(() =>
+      document.getElementById(`flow-${open}`)?.scrollIntoView({ block: "center" }),
+    );
+    return () => cancelAnimationFrame(frame);
+    // only when a different flow is opened, not on every refresh
+  }, [open, loaded]);
 
   const showOnly = (label: string, test: (flow: Flow) => boolean) => {
     if (only?.label === label) return setOnly(null);
@@ -496,7 +510,20 @@ export function App() {
                         </Td>
                         <Td>{flow.owner ? <span className="text-fog-300">{flow.owner}</span> : <span className="text-fog-700">none</span>}</Td>
                         <Td title={flow.source}>
-                          <span className="text-fog-300 underline decoration-fog-700 underline-offset-4">{flow.source}</span>
+                          {flow.link ? (
+                            <a
+                              href={flow.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex max-w-full items-center gap-1 text-fog-300 underline decoration-fog-700 underline-offset-4 hover:text-fog-100 hover:decoration-gold-500"
+                            >
+                              <span className="truncate">{flow.source}</span>
+                              <Icon name="external" className="size-3 shrink-0 text-fog-500" />
+                            </a>
+                          ) : (
+                            <span className="text-fog-300">{flow.source}</span>
+                          )}
                         </Td>
                         <Td align="right" title={flow.last_ok ?? undefined}>
                           {flow.last_ok ? (

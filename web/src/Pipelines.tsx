@@ -83,11 +83,12 @@ export function Pipelines({ flows }: { flows: PipelineFlow[] }) {
                   {i > 0 && <Link broken={steps[i - 1].some((flow) => BROKEN.has(flow.state))} />}
                   <div className="flex flex-col gap-2">
                     {step.map((flow) => (
-                      <div
+                      <a
                         key={flow.id}
-                        title={flow.detail}
-                        className={`w-52 rounded-md border px-3 py-2 ${
-                          flow.state === "failed" ? "border-red-500/60" : flow.state === "late" ? "border-gold-500/60" : "border-line"
+                        href={`#${new URLSearchParams({ flow: flow.id })}`}
+                        title={`${flow.detail}. open ${flow.id}`}
+                        className={`block w-52 rounded-md border px-3 py-2 transition hover:bg-ink-850 focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:outline-none ${
+                          flow.state === "failed" ? "border-red-500/60" : flow.state === "late" ? "border-gold-500/60" : "border-line hover:border-fog-700"
                         }`}
                       >
                         <div className="flex items-center gap-2 text-[13px]">
@@ -98,7 +99,7 @@ export function Pipelines({ flows }: { flows: PipelineFlow[] }) {
                           {flow.state}
                           {flow.state !== "ok" && flow.state !== "pending" ? ` · ${flow.detail}` : ""}
                         </div>
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </Fragment>
