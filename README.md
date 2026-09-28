@@ -36,6 +36,8 @@ jobs, gateways -> laplace -> PostgreSQL (state) -> Delta (history)
   PostgreSQL database. Each check runs on exactly one replica, and each alert is sent once.
 - **Reports uptime against targets.** Monthly uptime, incidents, longest outage and recovery
   time per flow and owner, with a day-by-day view, measured against each flow's SLA.
+- **Shows what Databricks jobs cost.** Cost per job from the billing tables, at list price, in
+  the dashboard and the monthly report, with a warning when a job suddenly costs far more.
 
 ## Usage
 
@@ -110,6 +112,6 @@ Markdown in `docs/` is the single source of truth. Word copies are generated fro
 
 ## Status
 
-Released as 0.2.1. Every kind of flow, alerting to Teams, Slack and email, sign-in with roles,
+Released as 0.3.0. Every kind of flow, alerting to Teams, Slack and email, sign-in with roles,
 reports and the Kubernetes deployment are implemented and tested end to end. The known
 gaps are listed in `docs/operations.md`, Appendix B.
