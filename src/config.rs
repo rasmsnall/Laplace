@@ -256,6 +256,12 @@ impl Config {
         for flow in &config.flows {
             flow.schedule(chrono_tz::UTC)
                 .with_context(|| format!("flow {}", flow.id))?;
+            if !(flow.anomaly_tolerance > 0.0 && flow.anomaly_tolerance < 1.0) {
+                bail!(
+                    "flow {}: anomaly_tolerance must be above 0 and below 1",
+                    flow.id
+                );
+            }
             if let Some(owner) = &flow.owner
                 && !config.owners.contains_key(owner)
             {

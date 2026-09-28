@@ -332,6 +332,13 @@ days, so a year of reports can be compared. The prune job enforces both.
 
 With `DELTA_URI` set, new events, calls and state changes are appended to Delta tables every
 five minutes, from a watermark stored in PostgreSQL, so Databricks holds the full history.
+
+Row ids are handed out when a row is inserted, but rows commit in their own order: id 101 can
+be visible while id 100 is still being written. An export that took 101 would move the
+watermark past 100 and skip it for good. Each row therefore records when it was written, and
+the export stops at the first row written less than a minute ago, taking the rest next time.
+Calls are exported only for minutes that have ended.
+
 A crash between the Delta commit and the watermark update can append a batch twice; consumers
 deduplicate on `id`, and on `(flow, minute)` for calls.
 

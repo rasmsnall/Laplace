@@ -13,6 +13,9 @@ pub struct Call {
     pub millis: i64,
 }
 
+/// a call longer than a day is a gateway reporting nonsense, not a slow call
+const MAX_MILLIS: i64 = 86_400_000;
+
 /// counts calls in memory and writes them per minute, so a busy gateway costs one upsert
 /// per flow per flush instead of one write per request
 #[derive(Default)]
@@ -29,7 +32,9 @@ impl CallBuffer {
                 400..500 => counts.client_errors += 1,
                 _ => counts.ok += 1,
             }
-            counts.total_millis += call.millis;
+            counts.total_millis = counts
+                .total_millis
+                .saturating_add(call.millis.clamp(0, MAX_MILLIS));
         }
     }
 
@@ -52,7 +57,35 @@ impl CallBuffer {
             entry.ok += counts.ok;
             entry.client_errors += counts.client_errors;
             entry.server_errors += counts.server_errors;
-            entry.total_millis += counts.total_millis;
+            entry.total_millis = entry.total_millis.saturating_add(counts.total_millis);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nonsense_durations_cannot_overflow_the_minute() {
+        let buffer = CallBuffer::default();
+        let calls = [
+            Call {
+                status: 200,
+                millis: i64::MAX,
+            },
+            Call {
+                status: 200,
+                millis: i64::MAX,
+            },
+            Call {
+                status: 503,
+                millis: -5,
+            },
+        ];
+        buffer.add("gateway", &calls);
+        let counts = buffer.0.lock().unwrap().values().next().copied().unwrap();
+        assert_eq!(counts.total_millis, 2 * MAX_MILLIS);
+        assert_eq!((counts.ok, counts.server_errors), (2, 1));
     }
 }

@@ -93,7 +93,7 @@ change without a restart (see `architecture.md`, Chapter IV, Section 4).
 | `after` | none | Flows that must succeed before this one can, making a pipeline |
 | `owner` | none | An owner from `[owners]`, whose webhook and addresses get the alerts |
 | `sla` | none | Uptime target for reports, e.g. `0.995` |
-| `anomaly_tolerance` | `0.5` | How far a run's numbers may stray from the median of the last ten: `0.5` accepts half to double |
+| `anomaly_tolerance` | `0.5` | How far a run's numbers may stray from the median of the last ten: `0.5` accepts half to double. Above 0 and below 1 |
 
 ### 2. Fields by kind
 
@@ -163,7 +163,8 @@ not parse, SFTP flows without credentials, and email addresses that are not vali
 | `/ping/{flow}/start` | The job started. Its duration is measured from here |
 | `/ping/{flow}/{exit code}` | The job ended. `0` is a success, anything else a failure |
 
-Any method works, so `curl` and `Invoke-WebRequest` need no flags. A JSON body of up to 20
+Any method works, so `curl` and `Invoke-WebRequest` need no flags. The exit code is read as a
+number, so `0`, `00` and `+0` are all a success. A JSON body of up to 20
 numbers, such as `{"rows": 1204331}`, is recorded with the run and compared with earlier runs.
 
 `scripts/heartbeat.ps1`, also served at `/connect/heartbeat.ps1`, wraps a Task Scheduler job,
@@ -179,7 +180,8 @@ calls, to `/calls/{flow}`:
 ```
 
 Calls are counted per minute, not stored one by one (see `architecture.md`, Chapter IV,
-Section 3). Bodies are limited to 1 MB.
+Section 3). Bodies are limited to 1 MB. `millis` below 0 counts as 0, and above one day as one
+day, so a gateway reporting nonsense cannot disturb the counts.
 
 ### 3. Registering a flow by reporting
 
@@ -196,7 +198,7 @@ string may describe it:
 | `timezone` | `timezone=Europe/Helsinki` | As in `flows.toml` |
 | `grace` | `grace=45m` | As in `flows.toml` |
 | `after` | `after=erp-dump-adls` | Comma separated |
-| `owner` | `owner=data-team` | Must exist in `[owners]` |
+| `owner` | `owner=data-team` | An owner from `[owners]`. One that is not there is ignored and logged, so the report still counts |
 
 Sending different values later updates the flow. A flow declared in `flows.toml` always wins
 and cannot be changed this way.
@@ -222,7 +224,7 @@ every report does, even after every token is revoked.
 | `RETENTION_DAYS` | `30` | Days of run history kept in PostgreSQL. Changeable in settings |
 | `AUTO_REGISTER` | `true` | Whether reports under a new name create a flow. Changeable in settings |
 | `LAPLACE_TOKEN` | none | A token jobs may send, in addition to those made in settings |
-| `LAPLACE_TRUST_PROXY` | `false` | Trust `X-Forwarded-For` from a proxy in front, so rate limits see the real client |
+| `LAPLACE_TRUST_PROXY` | `false` | Trust the last `X-Forwarded-For` address, which the proxy in front appends, so rate limits see the real client |
 | `RUN_MIGRATIONS` | `true` | Whether `serve` migrates the schema at start. The Helm chart sets `false` |
 | `PORT`, `LAPLACE_OPS_PORT` | `8090`, `9090` | The public port, and the internal port for probes and metrics |
 | `LAPLACE_HEARTBEAT_URL` | none | An outside check laplace calls every minute while healthy |

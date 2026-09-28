@@ -1,4 +1,5 @@
 //! appends history to delta so databricks can report on it without touching postgres.
+//! rows are taken only once they have settled (see `SETTLED`), so none is skipped.
 //! a crash between the delta commit and the watermark update appends a batch twice;
 //! events carry their id and calls their (flow, minute) key, so readers can deduplicate.
 
@@ -18,6 +19,11 @@ use deltalake::{DeltaTable, DeltaTableBuilder};
 use sqlx::PgPool;
 
 const BATCH_ROWS: i64 = 100_000;
+
+/// ids are handed out when a row is inserted, but rows commit in their own order: id 101 can be
+/// visible while id 100 is still being written. a row written this long ago has committed, so
+/// the export stops at the first row younger than this and picks up the rest next time.
+const SETTLED: &str = "1 minute";
 
 #[derive(sqlx::FromRow)]
 struct EventRow {
@@ -57,10 +63,15 @@ struct StateChangeRow {
 async fn export_state_changes(pool: &PgPool, uri: &str) -> Result<()> {
     let after = watermark(pool, "state_changes").await?;
     let rows: Vec<StateChangeRow> = sqlx::query_as(
-        "select id, flow, at, state, detail from state_changes where id > $1 order by id limit $2",
+        "select id, flow, at, state, detail from state_changes
+         where id > $1 and id < coalesce(
+             (select min(id) from state_changes where id > $1 and recorded_at > now() - $3::interval),
+             9223372036854775807)
+         order by id limit $2",
     )
     .bind(after)
     .bind(BATCH_ROWS)
+    .bind(SETTLED)
     .fetch_all(pool)
     .await?;
     let Some(last) = rows.last().map(|row| row.id) else {
@@ -93,10 +104,15 @@ async fn export_events(pool: &PgPool, uri: &str) -> Result<()> {
     loop {
         let after = watermark(pool, "events").await?;
         let rows: Vec<EventRow> = sqlx::query_as(
-            "select id, flow, at, outcome, detail, millis from events where id > $1 order by id limit $2",
+            "select id, flow, at, outcome, detail, millis from events
+             where id > $1 and id < coalesce(
+                 (select min(id) from events where id > $1 and recorded_at > now() - $3::interval),
+                 9223372036854775807)
+             order by id limit $2",
         )
         .bind(after)
         .bind(BATCH_ROWS)
+        .bind(SETTLED)
         .fetch_all(pool)
         .await?;
         let Some(last) = rows.last().map(|row| row.id) else {

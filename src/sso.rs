@@ -316,6 +316,9 @@ async fn verified_identity(sso: &Sso, code: String, pending: &Pending) -> Result
         &Nonce::new(pending.nonce.clone()),
     )?;
 
+    if claims.email_verified() == Some(false) {
+        anyhow::bail!("the provider says the email address is not verified");
+    }
     // entra id only sends `email` when configured to, but its username is the email address
     let email = claims
         .email()
