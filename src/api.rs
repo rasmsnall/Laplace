@@ -15,7 +15,7 @@ use crate::db::{self, Outcome};
 use crate::inbound::Call;
 use crate::registry::{self, PushKind};
 use crate::schedule::{CronStyle, Schedule};
-use crate::{App, databricks, reports, sso, tokens};
+use crate::{App, databricks, errors, reports, sso, tokens};
 use crate::{status, timeline};
 
 /// reachable without signing in: jobs report here with their own token, and sign-in itself lives here
@@ -407,25 +407,48 @@ async fn ping_ok(
 }
 
 const MAX_METRICS: usize = 20;
+/// room for the error a job sends before laplace keeps only the end of it
+const MAX_ERROR_SENT: usize = 64 * 1024;
 
-/// an optional json object of numbers in the ping body, e.g. {"rows": 1204331}
-fn parse_metrics(body: &[u8]) -> ApiResult<Option<Metrics>> {
+#[derive(Deserialize)]
+struct RunReport {
+    /// the end of a failed run's output
+    error: Option<String>,
+    #[serde(flatten)]
+    metrics: Metrics,
+}
+
+/// an optional json body: numbers about the run, e.g. {"rows": 1204331}, and for a failed
+/// run the end of its output as "error"
+fn parse_report(body: &[u8]) -> ApiResult<(Option<Metrics>, Option<String>)> {
     if body.iter().all(u8::is_ascii_whitespace) {
-        return Ok(None);
+        return Ok((None, None));
     }
-    let metrics: Metrics = serde_json::from_slice(body).map_err(|_| {
+    let report: RunReport = serde_json::from_slice(body).map_err(|_| {
         ApiError(
             StatusCode::BAD_REQUEST,
-            "body: expected a json object of numbers".into(),
+            "body: expected a json object of numbers and an optional error text".into(),
         )
     })?;
+    let metrics = report.metrics;
     if metrics.len() > MAX_METRICS || metrics.keys().any(|name| !registry::valid_id(name)) {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
             format!("body: up to {MAX_METRICS} numbers with simple names"),
         ));
     }
-    Ok(Some(metrics))
+    if report
+        .error
+        .as_ref()
+        .is_some_and(|error| error.len() > MAX_ERROR_SENT)
+    {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            format!("error: at most {MAX_ERROR_SENT} bytes"),
+        ));
+    }
+    let metrics = (!metrics.is_empty()).then_some(metrics);
+    Ok((metrics, report.error.as_deref().and_then(errors::clean)))
 }
 
 /// `start`, then the exit code: 0 is success, anything else a failure
@@ -437,7 +460,7 @@ async fn ping(
     body: Bytes,
 ) -> ApiResult<StatusCode> {
     authorize(&app, &headers).await?;
-    let metrics = parse_metrics(&body)?;
+    let (metrics, error) = parse_report(&body)?;
     let flow = find_or_register(
         &app,
         &flow,
@@ -447,7 +470,7 @@ async fn ping(
     .await?;
 
     if result == "start" {
-        db::record(&app.pool, &flow.id, Outcome::Start, "started", None).await?;
+        db::record(&app.pool, &flow.id, Outcome::Start, "started", None, None).await?;
         return Ok(StatusCode::NO_CONTENT);
     }
     let code: i64 = result.parse().map_err(|_| {
@@ -458,17 +481,29 @@ async fn ping(
     })?;
     match code {
         0 => {
-            db::record(&app.pool, &flow.id, Outcome::Ok, "exit 0", metrics.as_ref()).await?;
+            db::record(
+                &app.pool,
+                &flow.id,
+                Outcome::Ok,
+                "exit 0",
+                metrics.as_ref(),
+                None,
+            )
+            .await?;
             anomaly::evaluate(&app.pool, &flow.id, flow.anomaly_tolerance).await?;
         }
         code => {
-            let detail = format!("exited with code {code}");
+            let detail = match error.as_deref().and_then(errors::headline) {
+                Some(headline) => format!("exited with code {code}: {headline}"),
+                None => format!("exited with code {code}"),
+            };
             db::record(
                 &app.pool,
                 &flow.id,
                 Outcome::Fail,
                 &detail,
                 metrics.as_ref(),
+                error.as_deref(),
             )
             .await?
         }
@@ -753,5 +788,36 @@ async fn authorize(app: &App, headers: &HeaderMap) -> ApiResult<()> {
             StatusCode::UNAUTHORIZED,
             "missing or wrong token".into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_report_carries_numbers_and_an_error() {
+        let Ok((metrics, error)) =
+            parse_report(br#"{"rows": 12, "error": "boom\npassword=hunter2"}"#)
+        else {
+            panic!("refused a valid report");
+        };
+        assert_eq!(metrics.unwrap()["rows"], 12.0);
+        assert_eq!(error.as_deref(), Some("boom\npassword=***"));
+
+        assert!(matches!(parse_report(b"  "), Ok((None, None))));
+        assert!(matches!(parse_report(b"{}"), Ok((None, None))));
+        assert!(matches!(
+            parse_report(br#"{"error": " "}"#),
+            Ok((None, None))
+        ));
+    }
+
+    #[test]
+    fn a_bad_report_is_refused() {
+        assert!(parse_report(br#"{"rows": "many"}"#).is_err());
+        assert!(parse_report(br#"{"error": 5}"#).is_err());
+        let huge = serde_json::json!({ "error": "x".repeat(MAX_ERROR_SENT + 1) }).to_string();
+        assert!(parse_report(huge.as_bytes()).is_err());
     }
 }

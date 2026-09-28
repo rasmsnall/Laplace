@@ -60,6 +60,7 @@ pub struct Event {
     pub detail: String,
     pub millis: Option<i32>,
     pub metrics: Option<Json<Metrics>>,
+    pub error: Option<String>,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -85,20 +86,23 @@ pub async fn record(
     outcome: Outcome,
     detail: &str,
     metrics: Option<&Metrics>,
+    error: Option<&str>,
 ) -> Result<()> {
     let mut tx = pool.begin().await?;
     sqlx::query(
-        "insert into events (flow, at, outcome, detail, metrics)
+        "insert into events (flow, at, outcome, detail, metrics, error)
          select $1, now(), $2, $3,
                 case when $2 <> 'start' and running_since is not null
                      then coalesce($4, '{}'::jsonb) || jsonb_build_object('seconds', round(extract(epoch from now() - running_since)))
-                     else $4 end
+                     else $4 end,
+                $5
          from flow_state where flow = $1",
     )
     .bind(flow)
     .bind(outcome.as_str())
     .bind(detail)
     .bind(metrics.map(Json))
+    .bind(error)
     .execute(&mut *tx)
     .await?;
 
@@ -592,7 +596,7 @@ pub async fn last_failure(pool: &PgPool, flow: &str) -> Result<Option<DateTime<U
 
 pub async fn recent_events(pool: &PgPool, flow: &str, limit: i64) -> Result<Vec<Event>> {
     Ok(sqlx::query_as(
-        "select at, outcome, detail, millis, metrics from events where flow = $1 order by at desc, id desc limit $2",
+        "select at, outcome, detail, millis, metrics, error from events where flow = $1 order by at desc, id desc limit $2",
     )
     .bind(flow)
     .bind(limit)
@@ -608,7 +612,7 @@ pub async fn recent_calls(pool: &PgPool, flow: &str, limit: i64) -> Result<Vec<E
                 format('%s calls, %s client errors, %s server errors',
                        ok + client_errors + server_errors, client_errors, server_errors) as detail,
                 (total_millis / nullif(ok + client_errors + server_errors, 0))::int as millis,
-                null::jsonb as metrics
+                null::jsonb as metrics, null::text as error
          from calls where flow = $1 order by minute desc limit $2",
     )
     .bind(flow)

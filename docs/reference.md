@@ -167,8 +167,16 @@ Any method works, so `curl` and `Invoke-WebRequest` need no flags. The exit code
 number, so `0`, `00` and `+0` are all a success. A JSON body of up to 20
 numbers, such as `{"rows": 1204331}`, is recorded with the run and compared with earlier runs.
 
+A failed run may also send the end of its output as `"error"`, up to 64 KB. Laplace masks
+anything that looks like a secret (credentials in URLs, `Bearer` tokens, `password=` and
+similar pairs, cloud and Databricks keys), keeps the last 8 KB, and shows it under the run
+in the dashboard. The line that names the error, the last one outside a stack trace, is
+added to the flow's detail and so reaches the alert. The output is not exported to Delta.
+
 `scripts/heartbeat.ps1`, also served at `/connect/heartbeat.ps1`, wraps a Task Scheduler job,
-reports its start and exit code, and runs the job even when laplace cannot be reached.
+reports its start and exit code, and runs the job even when laplace cannot be reached. On a
+failure it sends the last 100 lines of stderr, or of stdout when stderr is empty. `-KeepOutput`
+stops that for a job whose output must not leave the server.
 
 ### 2. Inbound API traffic
 

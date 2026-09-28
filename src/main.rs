@@ -7,6 +7,7 @@ mod config;
 mod costs;
 mod databricks;
 mod db;
+mod errors;
 mod export;
 mod guard;
 mod holidays;
