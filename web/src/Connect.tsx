@@ -330,7 +330,9 @@ powershell.exe -NoProfile -File C:\\laplace\\heartbeat.ps1 -Flow ${id} ${
       }${calendar.length ? ` -Calendar ${calendar.join(",")}` : ""} -Command C:\\jobs\\your-job.exe`;
 
     case "databricks":
-      return `import requests
+      return `import traceback
+
+import requests
 
 LAPLACE = "${origin}"
 HEADERS = ${token ? `{"Authorization": "Bearer " + dbutils.secrets.get("laplace", "token")}` : "{}"}
@@ -346,7 +348,7 @@ try:
     rows = ...  # the job
     report(0, {"rows": rows})  # optional numbers; laplace warns when they look unusual
 except Exception:
-    report(1)
+    report(1, {"error": traceback.format_exc()})  # laplace masks secrets and keeps the last 8 KB
     raise`;
 
     case "shell": {
@@ -354,7 +356,8 @@ except Exception:
       return `LAPLACE_URL=${origin}
 curl -fsS -m 10 -X POST "$LAPLACE_URL/ping/${id}/start?${query}"${auth} || true
 your-job; code=$?
-# optional: add -d '{"rows": 1204331}' to report numbers about the run
+# optional: add -d '{"rows": 1204331}' to report numbers about the run,
+# and on a failure "error": the end of its output
 curl -fsS -m 10 -X POST "$LAPLACE_URL/ping/${id}/$code?${query}"${auth} || true
 exit $code`;
     }

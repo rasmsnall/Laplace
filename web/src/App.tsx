@@ -40,6 +40,7 @@ interface HistoryEntry {
   detail: string;
   millis: number | null;
   metrics: Record<string, number> | null;
+  error: string | null;
 }
 
 interface Mark {
@@ -1032,22 +1033,32 @@ function History({ flow, at, refreshed }: { flow: string; at: string | null; ref
         <li
           key={i}
           ref={sameMoment(entry.at, at) ? marked : undefined}
-          className={`flex gap-4 ${sameMoment(entry.at, at) ? "-mx-1 bg-gold-500/10 px-1" : ""}`}
+          className={sameMoment(entry.at, at) ? "-mx-1 bg-gold-500/10 px-1" : ""}
         >
-          <a
-            href={`#${new URLSearchParams({ flow, at: entry.at })}`}
-            onClick={(e) => e.stopPropagation()}
-            title="link to this run"
-            className="shrink-0 text-fog-500 hover:text-fog-100 hover:underline"
-          >
-            {new Date(entry.at).toLocaleString(LOCALE)}
-          </a>
-          <span className={`w-10 shrink-0 ${outcomeColor[entry.outcome]}`}>{entry.outcome}</span>
-          <span className="truncate text-fog-300">
-            {entry.detail}
-            {entry.millis !== null && <span className="text-fog-500"> · {entry.millis} ms</span>}
-            {entry.metrics && <span className="text-fog-500"> · {formatMetrics(entry.metrics)}</span>}
-          </span>
+          <div className="flex gap-4">
+            <a
+              href={`#${new URLSearchParams({ flow, at: entry.at })}`}
+              onClick={(e) => e.stopPropagation()}
+              title="link to this run"
+              className="shrink-0 text-fog-500 hover:text-fog-100 hover:underline"
+            >
+              {new Date(entry.at).toLocaleString(LOCALE)}
+            </a>
+            <span className={`w-10 shrink-0 ${outcomeColor[entry.outcome]}`}>{entry.outcome}</span>
+            <span className="truncate text-fog-300">
+              {entry.detail}
+              {entry.millis !== null && <span className="text-fog-500"> · {entry.millis} ms</span>}
+              {entry.metrics && <span className="text-fog-500"> · {formatMetrics(entry.metrics)}</span>}
+            </span>
+          </div>
+          {entry.error && (
+            <details onClick={(e) => e.stopPropagation()} className="mt-1 mb-2">
+              <summary className="cursor-pointer text-fog-500 hover:text-fog-100">output</summary>
+              <pre className="mt-1 max-h-60 overflow-auto border-l border-red-400/40 pl-3 break-words whitespace-pre-wrap text-fog-300">
+                {entry.error}
+              </pre>
+            </details>
+          )}
         </li>
       ))}
     </ol>
